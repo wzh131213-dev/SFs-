@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>像素航天模拟器</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 <main id="stage">
   <section id="build">
-    <div id="bl"><h2>零件(点击加到底部)</h2><div id="plist"></div></div>
+    <div id="bl"><div id="ver">像素航天模拟器 v5 · 太阳系 + 地图 + 触控 + 航点导航 + 机动节点</div><h2>零件(点击加到底部)</h2><div id="plist"></div></div>
     <canvas id="pv" width="200" height="420"></canvas>
     <div id="br"><h2>火箭</h2><div id="stats"></div><div id="pre"></div><button id="bgo">发射 ▶</button></div>
   </section>
@@ -27,14 +27,26 @@
     <p>降落伞 <i id="pch"></i></p>
     <p>时间 <i id="tt"></i></p>
     <p>级数 <i id="stg"></i> · 稳定器 <i id="sas"></i></p>
+    <p id="nav"></p>
   </section>
   <section id="bars">
     <div class="bar" title="推力"><i id="thb"></i></div>
     <div class="bar f" title="燃料"><i id="fub"></i></div>
   </section>
+  <section id="node" class="hide"></section>
   <div id="msg"></div>
-  <div id="help">A/D 旋转 · Shift/Ctrl(或 W/S) 推力 · Z 全推 · X 熄火 · 空格 分级 · P 开伞 · T 稳定器 · , . 时间倍率 · 滚轮 / +- 缩放 · M 一键缩放 · R 重来 · B 组装</div>
+  <div id="help">A/D 旋转 · Shift/Ctrl(或 W/S) 推力 · Z 全推 · X 熄火 · 空格 分级 · P 开伞 · T 稳定器 · , . 时间倍率 · 滚轮 / +- 缩放 · M 地图 · Tab 聚焦 · N 选目标 · J 加速到窗口 · O 机动节点 · V 对准 · K 到节点 · R 重来 · B 组装</div>
 </main>
-<script src="game.js"></script>
+<button id="tg" title="显示/隐藏触控按钮">🎮</button>
+<div id="touch">
+  <div id="joy"><i id="knob"></i></div>
+  <div id="btns">
+    <button data-k="KeyW">推+</button><button data-k="KeyS">推−</button><button data-k="KeyZ">全推</button><button data-k="KeyX">熄火</button>
+    <button data-k="Space">分级</button><button data-k="KeyP">开伞</button><button data-k="KeyT">稳定</button><button data-k="KeyM">地图</button>
+    <button data-k="Tab">聚焦</button><button data-k="Comma">慢</button><button data-k="Period">快</button><button data-k="KeyB">组装</button>
+    <button data-k="KeyN">目标</button><button data-k="KeyO">节点</button><button data-k="KeyV">对准</button><button data-k="KeyK">到节点</button><button data-k="KeyJ">到窗口</button><button data-k="Minus">缩小</button><button data-k="Equal">放大</button><button data-k="KeyR">重来</button><button data-k="KeyH">隐藏</button>
+  </div>
+</div>
+<script src="game.js?v=5"></script>
 </body>
 </html>
