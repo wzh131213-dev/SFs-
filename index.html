@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>像素航天模拟器</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="stage">
+  <section id="build">
+    <div id="bl"><h2>零件(点击加到底部)</h2><div id="plist"></div></div>
+    <canvas id="pv" width="200" height="420"></canvas>
+    <div id="br"><h2>火箭</h2><div id="stats"></div><div id="pre"></div><button id="bgo">发射 ▶</button></div>
+  </section>
+  <canvas id="c"></canvas>
+  <section id="hud">
+    <b id="rb">地球</b>
+    <p>高度 <i id="alt"></i></p>
+    <p>速度 <i id="spd"></i></p>
+    <p>垂直 <i id="vs"></i></p>
+    <p>远点 <i id="ap"></i></p>
+    <p>近点 <i id="pe"></i></p>
+    <p>推重比 <i id="twr"></i></p>
+    <p>质量 <i id="mass"></i></p>
+    <p>倍率 <i id="warp"></i></p>
+    <p>降落伞 <i id="pch"></i></p>
+    <p>级数 <i id="stg"></i> · 稳定器 <i id="sas"></i></p>
+  </section>
+  <section id="bars">
+    <div class="bar" title="推力"><i id="thb"></i></div>
+    <div class="bar f" title="燃料"><i id="fub"></i></div>
+  </section>
+  <div id="msg"></div>
+  <div id="help">A/D 旋转 · Shift/Ctrl(或 W/S) 推力 · Z 全推 · X 熄火 · 空格 分级 · P 开伞 · T 稳定器 · , . 时间倍率 · 滚轮 / +- 缩放 · R 重来 · B 组装</div>
+</main>
+<script src="game.js"></script>
+</body>
+</html>
