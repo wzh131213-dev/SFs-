@@ -9,24 +9,36 @@ const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 const sm = (a, b, x) => { x = clamp((x - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); };
 
 // ---------- 天体(物理单位:米 / 秒) ----------
-const mk = o => { o.mu = o.g * o.R * o.R; o.x = o.y = o.vx = o.vy = 0; return o; };
+const mk = o => { o.mu = o.mu || o.g * o.R * o.R; o.x = o.y = o.vx = o.vy = 0; o.type = o.type || 'rock'; return o; };
+const AU = 1.5e9, pl = (a, b, sn, d1, d2) => [C(...a), C(...b), 0, 0, C(...sn), C(...d1), C(...d2)], gs = (a, b) => [C(...a), C(...b)];
+const sun = mk({ name: '太阳', type: 'sun', R: 6.5e7, g: 0, mu: 1.215e17, H: 0, seed: 0, col: '#ffd23a' });
+const mercury = mk({ name: '水星', R: 2.3e5, g: 3.7, H: 2500, seed: 7, col: '#b5a79a', orb: { p: sun, a: .39 * AU, ph: 2 }, pal: pl([150,140,130], [120,112,105], [200,195,190], [100,92,85], [80,74,70]) });
+const venus = mk({ name: '金星', R: 5.7e5, g: 8.9, H: 3000, seed: 9, col: '#e8c070', orb: { p: sun, a: .72 * AU, ph: 4 }, pal: pl([210,170,90], [185,145,70], [240,225,190], [160,110,60], [130,90,50]), atm: { rho: 25, hs: 8000, top: 1e5, col: [240,190,100], sk: 12000, dim: 1 } });
 // pal: 0草顶 1草 2水 3深水 4雪 5土1 6土2
-const earth = mk({ name: '地球', R: 6e5, g: 9.8, H: 4000, atm: 1, seed: 1,
-  pal: [C(96,200,72), C(60,150,60), C(40,100,210), C(30,70,170), C(240,245,255), C(120,80,50), C(98,64,40)] });
-const moon = mk({ name: '月球', R: 1.5e5, g: 1.6, H: 3000, atm: 0, seed: 5,
+const earth = mk({ name: '地球', R: 6e5, g: 9.8, H: 4000, seed: 1, water: 1, col: '#3a7be0', orb: { p: sun, a: AU, ph: 0 },
+  pal: [C(96,200,72), C(60,150,60), C(40,100,210), C(30,70,170), C(240,245,255), C(120,80,50), C(98,64,40)], atm: { rho: 1.2, hs: 7000, top: 8e4, col: [110,180,250], sk: 9000, dim: 1 } });
+const moon = mk({ name: '月球', R: 1.5e5, g: 1.6, H: 3000, seed: 5, col: '#cfd0d6', orb: { p: earth, a: 1.2e7, ph: .5 },
   pal: [C(196,196,202), C(160,160,168), 0, 0, C(210,210,215), C(112,112,120), C(92,92,100)] });
-const bodies = [earth, moon], MD = 1.2e7, MW = Math.sqrt(earth.mu / MD ** 3);
-function moonAt(T) {
-  const a = .5 + MW * T;
-  moon.x = MD * Math.cos(a); moon.y = MD * Math.sin(a);
-  moon.vx = -MD * MW * Math.sin(a); moon.vy = MD * MW * Math.cos(a);
+const mars = mk({ name: '火星', R: 3.2e5, g: 3.7, H: 5000, seed: 11, col: '#d8613a', orb: { p: sun, a: 1.52 * AU, ph: .77 }, pal: pl([190,100,60], [165,80,50], [240,230,225], [150,70,45], [120,55,38]), atm: { rho: .02, hs: 11000, top: 6e4, col: [210,150,110], sk: 14000, dim: .45 } });
+const gas = (name, R, g, a, ph, col, c1, c2, ac) => mk({ name, type: 'gas', R, g, H: 0, seed: 3, col, orb: { p: sun, a: a * AU, ph }, pal: gs(c1, c2), atm: { rho: 1.5, hs: 40000, top: 4e5, col: ac, sk: 80000, dim: .7 } });
+const bodies = [sun, mercury, venus, earth, moon, mars,
+  gas('木星', 6.7e6, 24.8, 5.2, 3.1, '#d9b38c', [214,180,140], [176,132,96], [230,200,160]),
+  gas('土星', 5.7e6, 10.4, 9.58, 5, '#e6d29a', [230,210,160], [200,175,120], [235,215,170]),
+  gas('天王星', 2.4e6, 8.9, 19.2, 1.5, '#8fd8e0', [150,215,225], [120,190,205], [150,215,225]),
+  gas('海王星', 2.3e6, 11.2, 30.1, 4.4, '#4a6fe0', [70,100,220], [50,75,180], [90,120,230])];
+bodies.forEach(b => { if (b.orb) b.orb.w = Math.sqrt(b.orb.p.mu / b.orb.a ** 3); });
+function railsAt(T) {                                         // 所有天体沿圆轨道运行(子天体叠加父天体速度)
+  for (const b of bodies) {
+    if (!b.orb) continue; const o = b.orb, a = o.ph + o.w * T, c = Math.cos(a), sn = Math.sin(a);
+    b.x = o.p.x + o.a * c; b.y = o.p.y + o.a * sn; b.vx = o.p.vx - o.a * o.w * sn; b.vy = o.p.vy + o.a * o.w * c;
+  }
 }
 let isW = 0;
 function terr(b, t) {
   let d = Math.abs(t - PI / 2); if (d > PI) d = 2 * PI - d;
   const m = b === earth ? sm(.003, .03, d) : 1;           // 发射台附近保持平坦
   const v = Math.sin(t * 7 + b.seed) * .5 + Math.sin(t * 19 + b.seed * 2) * .3 + Math.sin(t * 53 + b.seed * 3) * .2;
-  isW = b.atm && v < 0 && m > .3 ? 1 : 0;
+  isW = b.water && v < 0 && m > .3 ? 1 : 0;
   return v > 0 ? v * m * b.H : 0;
 }
 function grav(x, y) {
@@ -81,14 +93,14 @@ const BY = [0, .5, .75, .25];
 
 // ---------- 状态 ----------
 let S, D, P, T, mpp, camx, camy, wi, msgT, flags;
-const WARPS = [1, 2, 5, 10, 50, 100, 1000];
+const WARPS = [1, 2, 5, 10, 50, 100, 1000, 1e4, 1e5, 1e6];
 const rows = () => { let r = CAP; for (let i = S.stages.length - 1; i >= 0; i--) r = r.concat(S.stages[i].rows); return r; };
 const chutesN = () => S.stages.reduce((s, t) => s + t.chutes, 0);
 const mass = () => CAPM + S.stages.reduce((s, t) => s + t.dry + t.fuel, 0);
 function reset() {
   const stg = compile(design), hh = (CAP.length + stg.reduce((s, t) => s + t.rows.length, 0)) / 2;
-  S = { x: 0, y: earth.R + hh + .1, vx: 0, vy: 0, a: 0, w: 0, thr: 0, sas: 1, rot: 0, dead: 0, flame: 0, chute: 0, land: earth, landT: PI / 2, stages: stg };
-  D = []; P = []; T = 0; mpp = .4; wi = 0; flags = {}; moonAt(0); msg('按 Shift 点火,空格分级,B 回组装', 4000);
+  S = { x: 0, y: 0, vx: 0, vy: 0, a: 0, w: 0, thr: 0, sas: 1, rot: 0, dead: 0, flame: 0, chute: 0, land: earth, landT: PI / 2, stages: stg };
+  D = []; P = []; T = 0; mpp = .4; wi = 0; flags = {}; railsAt(0); S.x = earth.x; S.y = earth.y + earth.R + hh + .1; S.vx = earth.vx; S.vy = earth.vy; msg('按 Shift 点火,空格分级,B 回组装', 4000);
 }
 function msg(t, ms) { $('msg').textContent = t; clearTimeout(msgT); msgT = setTimeout(() => $('msg').textContent = '', ms || 3000); }
 function boom(x, y, n) { for (let i = 0; i < n; i++) { const a = Math.random() * 2 * PI, s = 5 + Math.random() * 30; P.push({ x, y, vx: Math.cos(a) * s + S.vx * .2, vy: Math.sin(a) * s + S.vy * .2, l: .6 + Math.random() }); } }
@@ -102,18 +114,18 @@ function stage() {
 
 // ---------- 物理 ----------
 function step(dt) {
-  T += dt; moonAt(T);
+  let done = 0; const adv = () => { if (!done) { done = 1; T += dt; railsAt(T); } };   // 天体与火箭同步推进到 T+dt
   for (let i = D.length - 1; i >= 0; i--) {
     const d = D[i], g = grav(d.x, d.y); d.vx += g[0] * dt; d.vy += g[1] * dt; d.x += d.vx * dt; d.y += d.vy * dt; d.a += d.w * dt;
     for (const b of bodies) if (Math.hypot(d.x - b.x, d.y - b.y) < b.R) { boom(d.x, d.y, 15); D.splice(i, 1); break; }
   }
-  if (S.dead) return;
+  if (S.dead) { adv(); return; }
   const hh = rows().length / 2, st = S.stages[0], m = mass();
   if (S.land) {
     const b = S.land;
     if (S.thr > 0 && st.fuel > 0 && st.F * S.thr / m > b.g) { S.land = null; S.vx = b.vx; S.vy = b.vy; }
     else {
-      const gr = b.R + terr(b, S.landT) + hh + .1;
+      adv(); const gr = b.R + terr(b, S.landT) + hh + .1;
       S.x = b.x + gr * Math.cos(S.landT); S.y = b.y + gr * Math.sin(S.landT); S.vx = b.vx; S.vy = b.vy; S.w = 0; S.flame = 0; return;
     }
   }
@@ -123,24 +135,29 @@ function step(dt) {
     ax -= th / m * Math.sin(S.a); ay += th / m * Math.cos(S.a);
   }
   S.flame = th ? S.thr : 0;
-  const ea = Math.hypot(S.x, S.y) - earth.R;
-  if (ea < 8e4) {                                           // 大气阻力
-    const rho = 1.2 * Math.exp(-Math.max(ea, 0) / 7000), sp = Math.hypot(S.vx, S.vy);
-    if (sp > 0) { const f = .5 * rho * sp * sp * (3 + (S.chute ? 200 * chutesN() : 0)) / m; ax -= f * S.vx / sp; ay -= f * S.vy / sp; }
+  for (const b of bodies) if (b.atm) {                       // 各天体的大气阻力(相对该天体的速度)
+    const al = Math.hypot(S.x - b.x, S.y - b.y) - b.R; if (al >= b.atm.top) continue;
+    const rho = b.atm.rho * Math.exp(-Math.max(al, 0) / b.atm.hs), rx = S.vx - b.vx, ry = S.vy - b.vy, sp = Math.hypot(rx, ry), q = .5 * rho * sp * sp;
+    if (q > 2.5e5) { crash(); msg('💥 气动载荷过大,箭体解体', 5000); adv(); return; }
+    if (sp > 0) { const f = q * (3 + (S.chute ? 200 * chutesN() : 0)) / m; ax -= f * rx / sp; ay -= f * ry / sp; }
   }
   S.w += S.rot * .8 * dt; if (S.sas && !S.rot) S.w *= Math.exp(-3 * dt);
-  S.vx += ax * dt; S.vy += ay * dt; S.x += S.vx * dt; S.y += S.vy * dt; S.a += S.w * dt;
+  const fx = ax - g[0], fy = ay - g[1];                      // 推力+阻力(本步视为常量)
+  S.x += S.vx * dt + .5 * ax * dt * dt; S.y += S.vy * dt + .5 * ay * dt * dt; S.a += S.w * dt;
+  adv(); const g1 = grav(S.x, S.y);                          // 速度 Verlet:用新位置的引力修正速度
+  S.vx += (.5 * (g[0] + g1[0]) + fx) * dt; S.vy += (.5 * (g[1] + g1[1]) + fy) * dt;
   const bx = S.x + Math.sin(S.a) * hh, by = S.y - Math.cos(S.a) * hh;
   for (const b of bodies) {
     const dx = bx - b.x, dy = by - b.y, r = Math.sqrt(dx * dx + dy * dy);
     if (r > b.R + b.H + 5) continue;
     const t = Math.atan2(dy, dx);
     if (r <= b.R + terr(b, t)) {
+      if (b.type !== 'rock') { crash(); msg(b.type === 'sun' ? '🔥 被太阳吞没!' : '坠入' + b.name + '深处', 6000); break; }
       const vr = Math.hypot(S.vx - b.vx, S.vy - b.vy), dot = -Math.sin(S.a) * Math.cos(t) + Math.cos(S.a) * Math.sin(t);
       if (vr < 15 && dot > .9) {
         S.land = b; S.landT = t; S.a = t - PI / 2; S.w = 0; S.chute = 0;
         msg('着陆成功 · ' + b.name);
-        if (b === moon && !flags.ml) { flags.ml = 1; msg('🌙 月球着陆成功!', 6000); }
+        if (b !== earth && !flags['L' + b.name]) { flags['L' + b.name] = 1; msg('🚩 首次登陆' + b.name + '!', 6000); }
       } else crash();
       break;
     }
@@ -149,11 +166,17 @@ function step(dt) {
 function chute() {
   if (S.dead || S.land || S.chute) return;
   if (!chutesN()) { msg('没有降落伞(或已随分级丢失)'); return; }
-  const ea = Math.hypot(S.x, S.y) - earth.R;
-  if (ea > 25000) { msg('高度太高,低于 25 km 再开伞'); return; }
-  const q = .5 * 1.2 * Math.exp(-Math.max(ea, 0) / 7000) * (S.vx * S.vx + S.vy * S.vy);
+  let ab = null, ea = 0;
+  for (const b of bodies) if (b.atm && b.type === 'rock') { const al = Math.hypot(S.x - b.x, S.y - b.y) - b.R; if (al < b.atm.hs * 3.5) { ab = b; ea = al; } }
+  if (!ab) { msg('高度太高或没有大气,伞无效'); return; }
+  const rx = S.vx - ab.vx, ry = S.vy - ab.vy, q = .5 * ab.atm.rho * Math.exp(-Math.max(ea, 0) / ab.atm.hs) * (rx * rx + ry * ry);
   if (q > 9000) { S.stages.forEach(t => t.chutes = 0); boom(S.x, S.y + 8, 25); msg('降落伞被撕裂!开得太早/太快', 4000); return; }
   S.chute = 1; msg('降落伞展开');
+}
+function adt() {                                              // 自适应步长:离天体越近、相对速度越大,步长越小
+  let d = 300;
+  for (const b of bodies) { const r = Math.hypot(b.x - S.x, b.y - S.y), v = Math.hypot(S.vx - b.vx, S.vy - b.vy) + 1; d = Math.min(d, .015 * r / v); }
+  return Math.max(d, .02);
 }
 function ref() { let best = earth, bg = 0; for (const b of bodies) { const dx = b.x - S.x, dy = b.y - S.y, g = b.mu / (dx * dx + dy * dy); if (g > bg) { bg = g; best = b; } } return best; }
 function orbit(b) {
@@ -164,24 +187,28 @@ function orbit(b) {
 }
 
 // ---------- 渲染 ----------
-function sky(alt, x, y) {
-  const q = Math.floor(Math.exp(-Math.max(alt, 0) / 9000) * 8 + BY[(x & 1) | ((y & 1) << 1)] * .99) / 8;
-  return q > 0 ? C(110 * q | 0, 180 * q | 0, 250 * q | 0) : 0;
+function sky(b, alt, x, y) {
+  const a = b.atm, q = Math.floor(Math.exp(-Math.max(alt, 0) / a.sk) * 8 * a.dim + BY[(x & 1) | ((y & 1) << 1)] * .99) / 8;
+  return q > 0 ? C(a.col[0] * q | 0, a.col[1] * q | 0, a.col[2] * q | 0) : 0;
 }
+function glow(b, alt, x, y) { const q = Math.floor(Math.exp(-alt / (b.R * .06)) * 6 + BY[(x & 1) | ((y & 1) << 1)] * .99) / 6; return q > 0 ? C(255 * q | 0, 175 * q | 0, 40 * q | 0) : 0; }
 function dirt(p, dp, x, y) { const k = (dp / 10 | 0) & 1; return (((x + y) & 1) && dp % 10 < 1.5 ? !k : k) ? p[5] : p[6]; }
 function drawBody(b) {
-  const s = 1 / mpp, cx = W / 2 + (b.x - camx) * s, cy = H / 2 - (b.y - camy) * s, rr = (b.R + b.H + (b.atm ? 8e4 : 0)) * s;
+  const s = 1 / mpp, cx = W / 2 + (b.x - camx) * s, cy = H / 2 - (b.y - camy) * s, rr = (b.R + b.H + (b.atm ? b.atm.top : 0) + (b.type === 'sun' ? b.R * .4 : 0)) * s;
+  if (rr < 1.5) return;
   if (cx + rr < 0 || cx - rr > W || cy + rr < 0 || cy - rr > H) return;
   const x0 = Math.max(0, cx - rr | 0), x1 = Math.min(W - 1, Math.ceil(cx + rr)), y0 = Math.max(0, cy - rr | 0), y1 = Math.min(H - 1, Math.ceil(cy + rr)), p = b.pal;
   for (let y = y0; y <= y1; y++) {
     const dy = (H / 2 - y - .5) * mpp + camy - b.y;
     for (let x = x0; x <= x1; x++) {
       const dx = (x + .5 - W / 2) * mpp + camx - b.x, r = Math.sqrt(dx * dx + dy * dy), alt = r - b.R; let c = 0;
-      if (alt > b.H) { if (b.atm && alt < 8e4) c = sky(alt, x, y); }
+      if (b.type === 'sun') c = alt > 0 ? glow(b, alt, x, y) : r < b.R * .55 ? C(255, 240, 170) : r < b.R * .85 ? C(255, 200, 80) : C(245, 150, 50);
+      else if (b.type === 'gas' && alt <= 0) c = (Math.floor(dy / b.R * 6 + Math.sin(dy / b.R * 17) * .8) & 1) ? p[0] : p[1];
+      else if (alt > b.H) { if (b.atm && alt < b.atm.top) c = sky(b, alt, x, y); }
       else if (alt < -40 * mpp) c = dirt(p, -alt / mpp, x, y);
       else {
         const h = terr(b, Math.atan2(dy, dx)), d = h - alt;
-        if (d < 0) { if (b.atm) c = sky(alt, x, y); }
+        if (d < 0) { if (b.atm) c = sky(b, alt, x, y); }
         else {
           const dp = d / mpp, snow = h > b.H * .6 && dp < 8, ch = (x + y) & 1;
           if (dp > 40) c = dirt(p, dp, x, y);
@@ -217,11 +244,23 @@ function drawOrbit(b, o) {
     if (sx >= 0 && sx < W && sy >= 0 && sy < H) ctx.fillRect(sx | 0, sy | 0, 1, 1);
   }
 }
+function markers() {
+  const s = 1 / mpp; ctx.font = '8px monospace';
+  if (mpp > 2e5) { ctx.fillStyle = '#2a3258'; for (const b of bodies) if (b.orb && b.orb.p === sun) for (let i = 0; i < 360; i++) {
+    const an = i * PI / 180, sx = W / 2 + (sun.x + b.orb.a * Math.cos(an) - camx) * s, sy = H / 2 - (sun.y + b.orb.a * Math.sin(an) - camy) * s;
+    if (sx >= 0 && sx < W && sy >= 0 && sy < H) ctx.fillRect(sx | 0, sy | 0, 1, 1); } }
+  for (const b of bodies) {
+    const rr = b.R * s, sx = W / 2 + (b.x - camx) * s, sy = H / 2 - (b.y - camy) * s;
+    if (sx < -30 || sx > W + 30 || sy < -10 || sy > H + 10) continue;
+    if (rr < 3) { ctx.fillStyle = b.col; ctx.fillRect(sx - 1 | 0, sy - 1 | 0, 3, 3); }
+    if (rr < 3 || mpp > 2e3) { ctx.fillStyle = '#cfe8ff'; ctx.fillText(b.name, sx + 5 | 0, sy - 3 | 0); }
+  }
+}
 function render(dt, rb, o) {
   buf.fill(0xFF000000);
   for (const s of stars) buf[s[1] * W + s[0]] = C(s[2], s[2], s[2]);
   for (const b of bodies) drawBody(b);
-  ctx.putImageData(img, 0, 0);
+  ctx.putImageData(img, 0, 0); markers();
   drawOrbit(rb, o);
   for (const d of D) if (mpp < 40) drawRows(d.rows, d.x, d.y, d.a);
   if (!S.dead) {
@@ -245,16 +284,17 @@ function render(dt, rb, o) {
 }
 
 // ---------- HUD ----------
-const f = m => m === Infinity ? '∞' : Math.abs(m) >= 1e4 ? (m / 1e3).toFixed(1) + ' km' : m.toFixed(0) + ' m';
+const f = m => m === Infinity ? '∞' : Math.abs(m) >= 1e8 ? (m / 1e9).toFixed(2) + ' Gm' : Math.abs(m) >= 1e7 ? (m / 1e6).toFixed(1) + ' Mm' : Math.abs(m) >= 1e4 ? (m / 1e3).toFixed(1) + ' km' : m.toFixed(0) + ' m';
 function hud(rb, o, eff) {
   const st = S.stages[0], m = mass(), g = rb.mu / (o.r * o.r);
   $('rb').textContent = '参照:' + rb.name; $('alt').textContent = f(o.r - rb.R);
   $('spd').textContent = Math.hypot(o.vx, o.vy).toFixed(0) + ' m/s'; $('vs').textContent = (o.rv / o.r).toFixed(0) + ' m/s';
   $('ap').textContent = f(o.ap); $('pe').textContent = f(o.pe); $('twr').textContent = (st.F / (m * g)).toFixed(2);
   $('mass').textContent = (m / 1000).toFixed(1) + ' t'; $('warp').textContent = 'x' + eff + (eff < WARPS[wi] ? '(受限)' : '');
-  $('stg').textContent = S.stages.length; $('pch').textContent = chutesN() ? (S.chute ? '已展开' : '待命 x' + chutesN() + ' (P)') : '无'; $('sas').textContent = S.sas ? '开' : '关';
+  $('tt').textContent = (T / 86400 | 0) + ' 天'; $('stg').textContent = S.stages.length; $('pch').textContent = chutesN() ? (S.chute ? '已展开' : '待命 x' + chutesN() + ' (P)') : '无'; $('sas').textContent = S.sas ? '开' : '关';
   $('thb').style.height = S.thr * 100 + '%'; $('fub').style.height = st.fuel / st.fuel0 * 100 + '%';
-  if (!flags.orb && !S.land && rb === earth && o.pe > 75000 && o.e < 1) { flags.orb = 1; msg('🛰 已进入地球轨道!去月球看看?', 6000); }
+  const lim = rb.atm ? rb.atm.top : 3000;
+  if (!S.land && o.e < 1 && o.pe > lim && !flags['o' + rb.name]) { flags['o' + rb.name] = 1; msg(rb === sun ? '☀ 已进入日心轨道!' : '🛰 已进入' + rb.name + '轨道!', 6000); }
 }
 
 // ---------- 输入 ----------
@@ -270,9 +310,10 @@ addEventListener('keydown', e => {
   if (e.code === 'Period') wi = Math.min(WARPS.length - 1, wi + 1); if (e.code === 'Comma') wi = Math.max(0, wi - 1);
 });
 addEventListener('keyup', e => K[e.code] = 0);
-const zoom = k => mpp = clamp(mpp * k, .2, 1e5);
+const zoom = k => mpp = clamp(mpp * k, .2, 2e8);
 addEventListener('wheel', e => { zoom(e.deltaY > 0 ? 1.15 : 1 / 1.15); e.preventDefault(); }, { passive: false });
-addEventListener('keydown', e => { if (e.code === 'Equal' || e.code === 'NumpadAdd') zoom(1 / 1.25); if (e.code === 'Minus' || e.code === 'NumpadSubtract') zoom(1.25); });
+addEventListener('keydown', e => { if (e.code === 'KeyM' && !e.repeat) { const L = [.4, 60, 3000, 2e5, 1e7, 2e8]; mpp = L.find(v => v > mpp * 1.2) || L[0]; }
+  if (e.code === 'Equal' || e.code === 'NumpadAdd') zoom(1 / 1.25); if (e.code === 'Minus' || e.code === 'NumpadSubtract') zoom(1.25); });
 
 // ---------- 主循环 ----------
 let last = performance.now(), hudT = 0;
@@ -318,9 +359,13 @@ function frame(now) {
     if (K.ShiftLeft || K.ShiftRight || K.KeyW) S.thr = Math.min(1, S.thr + dt * .7);
     if (K.ControlLeft || K.KeyS) S.thr = Math.max(0, S.thr - dt * .7);
   }
-  const thrusting = S.thr > 0 && S.stages[0].fuel > 0 && !S.dead, chuting = S.chute && chutesN() > 0, lowAtm = !S.land && !chuting && Math.hypot(S.x, S.y) - earth.R < 7e4;
-  const eff = thrusting || lowAtm ? 1 : Math.min(WARPS[wi], chuting ? 50 : 1e3), slow = thrusting || lowAtm, n = Math.ceil(dt * eff / (slow ? .02 : .25));
-  for (let i = 0; i < n; i++) step(dt * eff / n);
+  const thrusting = S.thr > 0 && S.stages[0].fuel > 0 && !S.dead, chuting = S.chute && chutesN() > 0;
+  let lowAtm = false;
+  if (!S.land && !chuting) for (const b of bodies) { if (b.type === 'sun') continue; if (Math.hypot(S.x - b.x, S.y - b.y) - b.R < (b.atm ? b.atm.top : 10000)) lowAtm = true; }
+  const slow = thrusting || lowAtm, sim = dt * (slow ? 1 : Math.min(WARPS[wi], chuting ? 50 : 1e6));
+  let rem = sim, cnt = 0;
+  while (rem > 1e-9 && cnt++ < 400) { const h = Math.min(rem, slow ? .02 : adt()); step(h); rem -= h; }
+  const eff = Math.max(1, Math.round((sim - rem) / dt));
   camx = S.x; camy = S.y;
   const rb = ref(), o = orbit(rb);
   render(dt, rb, o);
@@ -328,5 +373,5 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.SFS = { get S() { return S; } };
+window.SFS = { get S() { return S; }, bodies, get T() { return T; } };
 })();
