@@ -4,14 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>像素航天模拟器</title>
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 <main id="stage">
   <section id="build">
-    <div id="bl"><div id="ver">像素航天模拟器 v5 · 太阳系 + 地图 + 触控 + 航点导航 + 机动节点</div><h2>零件(点击加到底部)</h2><div id="plist"></div></div>
-    <canvas id="pv" width="200" height="420"></canvas>
-    <div id="br"><h2>火箭</h2><div id="stats"></div><div id="pre"></div><button id="bgo">发射 ▶</button></div>
+    <div id="bl"><div id="ver">像素航天模拟器 v6 · 太阳系 + 地图 + 触控 + 航点导航 + 机动节点 + 高清像素</div><h2>零件(点击加到底部)</h2><div id="plist"></div></div>
+    <canvas id="pv" width="260" height="420"></canvas>
+    <div id="br"><h2>火箭</h2><div id="stats"></div><div id="pre"></div>
+    <label class="q">画质(像素密度) <select id="qsel"><option value="0">低 480×270</option><option value="1">中 800×450</option><option value="2">高 960×540</option><option value="3">超 1280×720</option></select></label><button id="bgo">发射 ▶</button></div>
   </section>
   <canvas id="c"></canvas>
   <section id="hud">
@@ -35,7 +36,7 @@
   </section>
   <section id="node" class="hide"></section>
   <div id="msg"></div>
-  <div id="help">A/D 旋转 · Shift/Ctrl(或 W/S) 推力 · Z 全推 · X 熄火 · 空格 分级 · P 开伞 · T 稳定器 · , . 时间倍率 · 滚轮 / +- 缩放 · M 地图 · Tab 聚焦 · N 选目标 · J 加速到窗口 · O 机动节点 · V 对准 · K 到节点 · R 重来 · B 组装</div>
+  <div id="help">A/D 旋转 · Shift/Ctrl(或 W/S) 推力 · Z 全推 · X 熄火 · 空格 分级 · P 开伞 · T 稳定器 · , . 时间倍率 · 滚轮 / +- 缩放 · M 地图 · Tab 聚焦 · N 选目标 · J 加速到窗口 · O 机动节点 · V 对准 · K 到节点 · Q 画质 · R 重来 · B 组装</div>
 </main>
 <button id="tg" title="显示/隐藏触控按钮">🎮</button>
 <div id="touch">
@@ -44,9 +45,9 @@
     <button data-k="KeyW">推+</button><button data-k="KeyS">推−</button><button data-k="KeyZ">全推</button><button data-k="KeyX">熄火</button>
     <button data-k="Space">分级</button><button data-k="KeyP">开伞</button><button data-k="KeyT">稳定</button><button data-k="KeyM">地图</button>
     <button data-k="Tab">聚焦</button><button data-k="Comma">慢</button><button data-k="Period">快</button><button data-k="KeyB">组装</button>
-    <button data-k="KeyN">目标</button><button data-k="KeyO">节点</button><button data-k="KeyV">对准</button><button data-k="KeyK">到节点</button><button data-k="KeyJ">到窗口</button><button data-k="Minus">缩小</button><button data-k="Equal">放大</button><button data-k="KeyR">重来</button><button data-k="KeyH">隐藏</button>
+    <button data-k="KeyN">目标</button><button data-k="KeyO">节点</button><button data-k="KeyV">对准</button><button data-k="KeyK">到节点</button><button data-k="KeyJ">到窗口</button><button data-k="Minus">缩小</button><button data-k="Equal">放大</button><button data-k="KeyR">重来</button><button data-k="KeyQ">画质</button><button data-k="KeyH">隐藏</button>
   </div>
 </div>
-<script src="game.js?v=5"></script>
+<script src="game.js?v=6"></script>
 </body>
 </html>
