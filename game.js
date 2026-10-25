@@ -1,6 +1,8 @@
 'use strict';
 (() => {
-const W = 480, H = 270, G = 9.81, PI = Math.PI, $ = id => document.getElementById(id);
+const QS = [[480, 270], [800, 450], [960, 540], [1280, 720]];      // 画质档位(像素密度):低/中/高/超
+let QI = 1; try { const q = localStorage.getItem('sfs_q'); if (q !== null && QS[+q]) QI = +q; else if (/Mobi|Android|iPhone|iPad/.test(navigator.userAgent)) QI = 0; } catch (e) {}
+const [W, H] = QS[QI], U = Math.max(1, Math.round(W / 480)), FS = Math.round(8 * W / 480), G = 9.81, PI = Math.PI, $ = id => document.getElementById(id);
 const cv = $('c'), ctx = cv.getContext('2d');
 cv.width = W; cv.height = H; ctx.imageSmoothingEnabled = false;
 const img = ctx.createImageData(W, H), buf = new Uint32Array(img.data.buffer);
@@ -44,12 +46,18 @@ function railsAt(T) {                                         // 所有天体沿
   }
 }
 let isW = 0;
+const TN = 32768;                                             // 地形表:每个天体一张 32768 项(线性插值),替代逐像素 3 次 sin
+function rawT(b, t) {
+  let d = Math.abs(t - PI / 2) % (2 * PI); if (d > PI) d = 2 * PI - d;
+  return [Math.sin(t * 7 + b.seed) * .5 + Math.sin(t * 19 + b.seed * 2) * .3 + Math.sin(t * 53 + b.seed * 3) * .2, b === earth ? sm(.003, .03, d) : 1];
+}
 function terr(b, t) {
-  let d = Math.abs(t - PI / 2); if (d > PI) d = 2 * PI - d;
-  const m = b === earth ? sm(.003, .03, d) : 1;           // 发射台附近保持平坦
-  const v = Math.sin(t * 7 + b.seed) * .5 + Math.sin(t * 19 + b.seed * 2) * .3 + Math.sin(t * 53 + b.seed * 3) * .2;
-  isW = b.water && v < 0 && m > .3 ? 1 : 0;
-  return v > 0 ? v * m * b.H : 0;
+  let T_ = b._t;
+  if (!T_) { const v = new Float32Array(TN + 2), m = new Float32Array(TN + 2); for (let i = 0; i <= TN + 1; i++) { const r = rawT(b, -PI + 2 * PI * i / TN); v[i] = r[0]; m[i] = r[1]; } T_ = b._t = { v, m }; }
+  let u = (t + PI) / (2 * PI) * TN; if (u < 0) u = 0; else if (u > TN) u = TN;
+  const i = u | 0, f = u - i, vv = T_.v[i] + (T_.v[i + 1] - T_.v[i]) * f, mm = T_.m[i] + (T_.m[i + 1] - T_.m[i]) * f;
+  isW = b.water && vv < 0 && mm > .3 ? 1 : 0;                 // 发射台附近保持平坦(mm 为遮罩)
+  return vv > 0 ? vv * mm * b.H : 0;
 }
 function grav(x, y) {
   let gx = 0, gy = 0;
@@ -61,30 +69,84 @@ function grav(x, y) {
 }
 
 // ---------- 像素贴图(字符画) ----------
-const PC = { w: '#f4f4f4', b: '#4aa8ff', r: '#d83a3a', g: '#b8bcc8', G: '#7c8296', d: '#464a58', Y: '#e8c23a', o: '#e07b30', O: '#a8541c' };
-const pad = r => '..' + r + '..';                          // 所有行统一 13 格宽,两侧留给侧挂助推器
-const CAP = ['....w....', '...www...', '..wwbww..', '..wwwww..', '..rrrrr..'].map(pad), CAPM = 500, CAPCOST = 20000, BUDGET = 300000;
-const body = (w, h, c, e) => { const pd = '.'.repeat((9 - w) / 2), hf = (w - 1) / 2, r = [];
-  for (let i = 0; i < h; i++) r.push(pd + (i === 0 || i === h - 1 ? e.repeat(w) : c.repeat(hf + 1) + 'G' + c.repeat(hf - 1)) + pd); return r; };
+// ---- 精细像素贴图:每格 0.5 米,程序生成明暗(5 档渐变)、接缝、观察窗、喷管等细节 ----
+const PC = { W: '#ffffff', w: '#e6eaf2', g: '#c3c9d8', h: '#9aa3b8', G: '#626b84',        // 白/银
+  a: '#ffd2a6', b: '#ff9d55', c: '#e27832', d: '#b3521d', e: '#7a3512',                       // 橙
+  r: '#ff7060', R: '#c93232', Q: '#7c1c1c',                                                   // 红
+  m: '#9aa0b0', n: '#666c7e', o: '#404554', p: '#24272f',                                     // 金属
+  y: '#ffe58a', Y: '#e8c23a', z: '#a8861e',                                                   // 黄
+  k: '#9fe0ff', l: '#4aa8f0', q: '#1d5aa8',                                                   // 玻璃
+  u: '#ffd780', v: '#cc8f36', x: '#7a4f16' };                                                 // 铜
+const CELL = .5, WF = 26;
+const pad = r => { const k = (WF - r.length) / 2; return '.'.repeat(k) + r + '.'.repeat(k); };
+const RAMP = { w: 'WwghG', o: 'abcde', r: 'rRQQQ', m: 'mnopp', y: 'yYzzz', b: 'klqqq', c: 'uvxxx' };
+const shade = u => u < .1 ? 1 : u < .24 ? 0 : u < .42 ? 1 : u < .64 ? 2 : u < .84 ? 3 : 4;   // 圆柱受光:左亮右暗
+const rowOf = (w, ramp, dk = 0, edge = true) => { let t = ''; for (let x = 0; x < w; x++) { let k = shade((x + .5) / w); if (edge && x === 0) k = 3; if (edge && x === w - 1) k = 4; t += RAMP[ramp][clamp(k + dk, 0, 4)]; } return t; };
+function tank(w, h, ramp, band, seam) {
+  const r = [], bn = 2;
+  for (let y = 0; y < h; y++) r.push(y < bn || y >= h - bn ? rowOf(w, band, y === 0 || y === h - bn ? -1 : 0) : (y - bn) % seam === seam - 1 ? rowOf(w, ramp, 1) : rowOf(w, ramp, 0));
+  const wx = Math.floor(w * .64);                                // 燃料液位观察窗
+  for (let y = bn + 2; y < h - bn - 2; y++) { const t = [...r[y]]; if (t[wx] !== undefined) t[wx] = y % 2 ? 'l' : 'k'; r[y] = t.join(''); }
+  return r;
+}
+function capsule() {
+  const H = 16, g = [];
+  for (let y = 0; y < H; y++) {
+    const w = 2 * Math.max(1, Math.round(8 * Math.sin((y + 1) / H * PI / 2) ** .8)), ramp = y >= H - 5 && y <= H - 4 ? 'r' : y >= H - 2 ? 'm' : 'w';
+    g.push([...pad(rowOf(w, ramp, y === H - 1 ? 1 : 0))]);
+  }
+  for (let y = 0; y < H; y++) for (let x = 0; x < WF; x++) {     // 舷窗:左上高光的玻璃 + 金属圈
+    if (g[y][x] === '.') continue; const dx = x - 12.5, dy = y - 7.5, d = Math.hypot(dx, dy);
+    if (d <= 3.2) g[y][x] = 'klqqq'[clamp(Math.floor((dx + dy + 3) / 2.6), 0, 4)]; else if (d <= 4.3) g[y][x] = d > 3.8 ? 'G' : 'h';
+  }
+  return g.map(r => r.join(''));
+}
+function engine(cw, ch, tw, bw, bh) {                            // 燃烧室 + 接环 + 喷管(底部铜色边)
+  const r = [];
+  for (let y = 0; y < ch; y++) r.push(rowOf(cw, 'm', y === ch - 1 ? 1 : 0));
+  r.push(rowOf(cw + 2, 'y'));
+  for (let y = 0; y < bh; y++) {
+    const w = 2 * Math.round((tw + (bw - tw) * (y / (bh - 1)) ** .85) / 2);
+    r.push(y === bh - 1 ? 'uv' + 'p'.repeat(w - 4) + 'vx' : rowOf(w, 'm', y > bh * .55 ? 1 : 0));
+  }
+  return r;
+}
+const decoupler = () => [rowOf(16, 'y', 0), [...Array(16)].map((_, x) => x % 3 ? 'Y' : 'z').join('')];
+const chutePack = () => Array.from({ length: 4 }, (_, y) => { let t = ''; for (let x = 0; x < 8; x++) t += RAMP[(x >> 1) & 1 ? 'w' : 'r'][clamp(shade((x + .5) / 8) + (y === 0 ? 1 : 0), 0, 4)]; return t; });
+const BH = 22, booster = (() => {                                // 单枚固体助推器:红鼻锥 + 白箭体 + 红带 + 喷管
+  const r = [];
+  for (let y = 0; y < BH; y++) {
+    let w = 4, ramp = 'w', dk = 0;
+    if (y < 2) w = 2; else if (y < 5) ramp = 'r'; else if (y === 9 || y === 10) ramp = 'r'; else if (y === 18) ramp = 'm'; else if (y > 18) { w = 2; ramp = 'm'; dk = y === 21 ? 2 : 1; }
+    const t = rowOf(w, ramp, dk), k = (4 - w) / 2; r.push('.'.repeat(k) + t + '.'.repeat(k));
+  }
+  return r;
+})();
+const CAP = capsule().map(pad), CAPM = 500, CAPCOST = 20000, BUDGET = 300000;
 const PARTS = [
-  { id: 'ts', name: '小燃料箱', k: 't', rows: body(5, 4, 'w', 'r'), fuel: 2500, dry: 300, cost: 8000 },
-  { id: 'tm', name: '中燃料箱', k: 't', rows: body(7, 7, 'g', 'r'), fuel: 5500, dry: 650, cost: 18000 },
-  { id: 'tl', name: '大燃料箱', k: 't', rows: body(9, 11, 'o', 'O'), fuel: 10000, dry: 1100, cost: 35000 },
-  { id: 'es', name: '小引擎(真空)', k: 'e', rows: ['...ddd...', '..d...d..'], dry: 180, F: 6e4, isp: 330, cost: 25000 },
-  { id: 'em', name: '中引擎', k: 'e', rows: ['..GdddG..', '...ddd...', '.dd...dd.'], dry: 600, F: 2.2e5, isp: 300, cost: 50000 },
-  { id: 'el', name: '大引擎', k: 'e', rows: ['..GGGGG..', '..GdddG..', '...ddd...', '.dd...dd.', '.d.....d.'], dry: 1300, F: 4.8e5, isp: 285, cost: 110000 },
+  { id: 'ts', name: '小燃料箱', k: 't', rows: tank(10, 8, 'w', 'r', 4), fuel: 2500, dry: 300, cost: 8000 },
+  { id: 'tm', name: '中燃料箱', k: 't', rows: tank(14, 14, 'w', 'b', 5), fuel: 5500, dry: 650, cost: 18000 },
+  { id: 'tl', name: '大燃料箱', k: 't', rows: tank(18, 22, 'o', 'w', 6), fuel: 10000, dry: 1100, cost: 35000 },
+  { id: 'es', name: '小引擎(真空)', k: 'e', rows: engine(6, 2, 8, 12, 4), dry: 180, F: 6e4, isp: 330, cost: 25000 },
+  { id: 'em', name: '中引擎', k: 'e', rows: engine(8, 2, 10, 18, 6), dry: 600, F: 2.2e5, isp: 300, cost: 50000 },
+  { id: 'el', name: '大引擎', k: 'e', rows: engine(10, 3, 12, 22, 9), dry: 1300, F: 4.8e5, isp: 285, cost: 110000 },
   { id: 'sb', name: '侧挂助推器(一对)', k: 'b', rows: [], fuel: 6000, dry: 700, F: 2.4e5, isp: 240, cost: 35000 },
-  { id: 'pc', name: '降落伞', k: 'p', rows: ['...rwr...'], dry: 120, cost: 4000 },
-  { id: 'dc', name: '分离器', k: 'd', rows: ['.YYYYYYY.'], dry: 50, cost: 5000 }];
+  { id: 'pc', name: '降落伞', k: 'p', rows: chutePack(), dry: 120, cost: 4000 },
+  { id: 'dc', name: '分离器', k: 'd', rows: decoupler(), dry: 50, cost: 5000 }];
 const PART = {}; PARTS.forEach(p => PART[p.id] = p);
 const PRESETS = [['入门两级', ['tm', 'es', 'dc', 'tl', 'em']], ['单级试飞', ['ts', 'em']], ['三级重型', ['ts', 'es', 'dc', 'tm', 'em', 'dc', 'tl', 'el']],
   ['助推+回收', ['pc', 'pc', 'tm', 'es', 'dc', 'tl', 'sb', 'em']]];
-const BL = ['.w', 'ww', 'wG', 'ww', 'wG', 'ww', 'wG', '.d'], BR = BL.map(r => [...r].reverse().join(''));
-function overlay(rows, n) {                                  // 把 n 对助推器画在本级两侧(自下而上叠放)
+function overlay(rows, n) {                                      // 把 n 对助推器画在本级两侧(自下而上叠放),并画连接支架
   rows = rows.slice();
-  for (let k = 0; k < n; k++) for (let i = 0; i < 8; i++) {
-    const y = rows.length - 1 - (7 - i) - k * 8; if (y < 0) continue;
-    const r = [...rows[y]]; r[0] = BL[i][0]; r[1] = BL[i][1]; r[11] = BR[i][0]; r[12] = BR[i][1]; rows[y] = r.join('');
+  for (let k = 0; k < n; k++) for (let i = 0; i < BH; i++) {
+    const y = rows.length - 1 - (BH - 1 - i) - k * BH; if (y < 0) continue;
+    const r = [...rows[y]];
+    for (let c = 0; c < 4; c++) if (booster[i][c] !== '.') { r[c] = booster[i][c]; r[WF - 4 + c] = booster[i][c]; }
+    if (i === 7 || i === 8 || i === 15 || i === 16) {
+      for (let c = 4; c < WF / 2 && r[c] === '.'; c++) r[c] = 'n';
+      for (let c = WF - 5; c >= WF / 2 && r[c] === '.'; c--) r[c] = 'n';
+    }
+    rows[y] = r.join('');
   }
   return rows;
 }
@@ -98,26 +160,31 @@ function compile(dz) {
 }
 let design; try { design = JSON.parse(localStorage.getItem('sfs_design')); } catch (e) {}
 if (!Array.isArray(design) || design.some(id => !PART[id])) design = PRESETS[0][1].slice();
-const stars = []; for (let i = 0; i < 150; i++) stars.push([Math.random() * W | 0, Math.random() * H | 0, 80 + Math.random() * 175 | 0]);
+const stars = []; for (let i = 0; i < Math.round(150 * W * H / 129600); i++) stars.push([Math.random() * W | 0, Math.random() * H | 0, 80 + Math.random() * 175 | 0]);
 const BY = [0, .5, .75, .25];
 
 // ---------- 状态 ----------
 let S, D, P, T, mpp, camx, camy, wi, msgT, flags, mapMode = false, mf = 0, mm = 4e8, NAV = null, tgt = null, autoW = 0, node = null, NODE = null, alignOn = false;
 const WARPS = [1, 2, 5, 10, 50, 100, 1000, 1e4, 1e5, 1e6];
-const rows = () => { let r = CAP; for (let i = S.stages.length - 1; i >= 0; i--) r = r.concat(S.stages[i].rows); return r; };
+let RC = null;
+const rows = () => {                                          // 整枚火箭的行(缓存:仅在换火箭/分级时重建)
+  if (RC && RC.S === S && RC.n === S.stages.length) return RC.r;
+  let r = CAP; for (let i = S.stages.length - 1; i >= 0; i--) r = r.concat(S.stages[i].rows);
+  RC = { S, n: S.stages.length, r }; return r;
+};
 const chutesN = () => S.stages.reduce((s, t) => s + t.chutes, 0);
 const mass = () => CAPM + S.stages.reduce((s, t) => s + t.dry + t.fuel, 0);
 function reset() {
-  const stg = compile(design), hh = (CAP.length + stg.reduce((s, t) => s + t.rows.length, 0)) / 2;
+  const stg = compile(design), hh = (CAP.length + stg.reduce((s, t) => s + t.rows.length, 0)) * CELL / 2;
   S = { x: 0, y: 0, vx: 0, vy: 0, a: 0, w: 0, thr: 0, sas: 1, rot: 0, dead: 0, flame: 0, chute: 0, land: earth, landT: PI / 2, stages: stg };
-  D = []; P = []; T = 0; autoW = 0; node = null; NODE = null; alignOn = false; mpp = .4; wi = 0; flags = {}; railsAt(0); S.x = earth.x; S.y = earth.y + earth.R + hh + .1; S.vx = earth.vx; S.vy = earth.vy; msg('按 Shift 点火,空格分级,B 回组装', 4000);
+  D = []; P = []; T = 0; autoW = 0; node = null; NODE = null; alignOn = false; mpp = .4 * 480 / W; wi = 0; flags = {}; railsAt(0); S.x = earth.x; S.y = earth.y + earth.R + hh + .1; S.vx = earth.vx; S.vy = earth.vy; msg('按 Shift 点火,空格分级,B 回组装', 4000);
 }
 function msg(t, ms) { $('msg').textContent = t; clearTimeout(msgT); msgT = setTimeout(() => $('msg').textContent = '', ms || 3000); }
 function boom(x, y, n) { for (let i = 0; i < n; i++) { const a = Math.random() * 2 * PI, s = 5 + Math.random() * 30; P.push({ x, y, vx: Math.cos(a) * s + S.vx * .2, vy: Math.sin(a) * s + S.vy * .2, l: .6 + Math.random() }); } }
 function crash() { S.dead = 1; S.thr = 0; boom(S.x, S.y, 60); msg('💥 坠毁!按 R 重来 · B 组装', 6000); }
 function stage() {
   if (S.land || S.stages.length < 2 || S.dead) return;
-  const ux = -Math.sin(S.a), uy = Math.cos(S.a), old = rows().length, st = S.stages[0], Lh = st.rows.length;
+  const ux = -Math.sin(S.a), uy = Math.cos(S.a), old = rows().length * CELL, st = S.stages[0], Lh = st.rows.length * CELL;
   D.push({ rows: st.rows, x: S.x - ux * (old - Lh) / 2, y: S.y - uy * (old - Lh) / 2, vx: S.vx - ux * 1.5, vy: S.vy - uy * 1.5, a: S.a, w: S.w + (Math.random() - .5) * .1 });
   S.x += ux * Lh / 2; S.y += uy * Lh / 2; S.stages.shift(); msg('分级!');
 }
@@ -130,7 +197,7 @@ function step(dt) {
     for (const b of bodies) if (Math.hypot(d.x - b.x, d.y - b.y) < b.R) { boom(d.x, d.y, 15); D.splice(i, 1); break; }
   }
   if (S.dead) { adv(); return; }
-  const hh = rows().length / 2, st = S.stages[0], m = mass();
+  const hh = rows().length * CELL / 2, st = S.stages[0], m = mass();
   if (S.land) {
     const b = S.land;
     if (S.thr > 0 && st.fuel > 0 && st.F * S.thr / m > b.g) { S.land = null; S.vx = b.vx; S.vy = b.vy; }
@@ -235,7 +302,7 @@ function toggleNode() {
 }
 function drawNode() {                                         // 节点菱形标记 + 燃烧方向
   if (!node || !NODE) return; const s = 1 / mpp, N = NODE, sx = W / 2 + (N.px - camx) * s, sy = H / 2 - (N.py - camy) * s;
-  ctx.font = '8px monospace'; ctx.fillStyle = '#ffe14a';
+  ctx.font = FS + 'px monospace'; ctx.fillStyle = '#ffe14a';
   if (sx > 4 && sx < W - 4 && sy > 12 && sy < H - 4) {
     for (let k = -2; k <= 2; k++) { const w = 5 - 2 * Math.abs(k); ctx.fillRect(sx - (w >> 1) | 0, sy + k | 0, w, 1); }
     ctx.fillText('节点 ' + (N.dt > 0 ? fmT(N.dt) : '执行中'), sx + 6 | 0, sy + 3 | 0);
@@ -281,7 +348,7 @@ function cycleTarget() {
 function drawTarget() {                                       // 目标标记:屏内画方括号,屏外画边缘箭头;地图里再连一条虚线
   if (!tgt) return;
   const s = 1 / mpp, sx = W / 2 + (tgt.x - camx) * s, sy = H / 2 - (tgt.y - camy) * s, rr = Math.max(tgt.R * s, 3) + 5;
-  ctx.font = '8px monospace'; ctx.fillStyle = '#ffb35c';
+  ctx.font = FS + 'px monospace'; ctx.fillStyle = '#ffb35c';
   if (sx > 6 && sx < W - 6 && sy > 14 && sy < H - 6) {
     for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { ctx.fillRect(sx + a * rr - (a > 0 ? 3 : 0) | 0, sy + b * rr | 0, 4, 1); ctx.fillRect(sx + a * rr | 0, sy + b * rr - (b > 0 ? 3 : 0) | 0, 1, 4); }
   } else {
@@ -310,7 +377,7 @@ function fitMap() {                                           // 按聚焦对象
   const b = mf < bodies.length ? bodies[mf] : null; let r;
   if (!b) { const rb = ref(); r = Math.max(Math.hypot(S.x - rb.x, S.y - rb.y) * 2, rb.R * 3); }
   else if (b === sun) r = 4.8e10; else { const ms = bodies.filter(x => x.orb && x.orb.p === b); r = ms.length ? Math.max(...ms.map(x => x.orb.a)) * 1.3 : b.R * 6; }
-  mm = clamp(r / 120, 100, 1e9);
+  mm = clamp(r / (W / 4), 100, 1e9);
 }
 function toggleMap() { mapMode = !mapMode; if (mapMode) { fitMap(); msg('地图:Tab 切换聚焦 · 滚轮/±缩放 · M 返回', 3500); } }
 function cycleMap() { if (!mapMode) return; mf = (mf + 1) % (bodies.length + 1); fitMap(); }
@@ -324,17 +391,49 @@ function orbitFrom(b, rx, ry, vx, vy) {
 }
 
 // ---------- 渲染 ----------
-function sky(b, alt, x, y) {
-  const a = b.atm, q = Math.floor(Math.exp(-Math.max(alt, 0) / a.sk) * 8 * a.dim + BY[(x & 1) | ((y & 1) << 1)] * .99) / 8;
-  return q > 0 ? C(a.col[0] * q | 0, a.col[1] * q | 0, a.col[2] * q | 0) : 0;
+const EXPT = new Float32Array(4097); for (let i = 0; i <= 4096; i++) EXPT[i] = Math.exp(-i / 341);
+const lutOf = b => b.lut || (b.lut = Array.from({ length: 9 }, (_, k) => C(b.atm.col[0] * k / 8 | 0, b.atm.col[1] * k / 8 | 0, b.atm.col[2] * k / 8 | 0)));
+function skyC(b, lut, alt, x, y) {
+  const a = b.atm, i = (alt < 0 ? 0 : alt) / a.sk * 341 | 0, k = Math.floor((i > 4096 ? 0 : EXPT[i]) * 8 * a.dim + BY[(x & 1) | ((y & 1) << 1)] * .99);
+  return k > 0 ? lut[k] : 0;
 }
+const sky = (b, alt, x, y) => skyC(b, lutOf(b), alt, x, y);
 function glow(b, alt, x, y) { const q = Math.floor(Math.exp(-alt / (b.R * .06)) * 6 + BY[(x & 1) | ((y & 1) << 1)] * .99) / 6; return q > 0 ? C(255 * q | 0, 175 * q | 0, 40 * q | 0) : 0; }
 function dirt(p, dp, x, y) { const k = (dp / 10 | 0) & 1; return (((x + y) & 1) && dp % 10 < 1.5 ? !k : k) ? p[5] : p[6]; }
+let noFlat = false;
+const CA = new Float64Array(2048), CT = new Float64Array(2048), RA = new Float64Array(2048), RT = new Float64Array(2048);
+const wrapA = t => t > PI ? t - 2 * PI : t < -PI ? t + 2 * PI : t;
+function drawFlat(b, x0, x1, y0, y1) {                        // 局部平面近似:高度/切向坐标对像素线性变化,无需逐像素 sqrt/atan2
+  const p = b.pal, a = b.atm, lut = a ? lutOf(b) : null, top = a ? a.top : 0, s = mpp, deep = -40 * s;
+  const dx0 = camx - b.x, dy0 = camy - b.y, r0 = Math.sqrt(dx0 * dx0 + dy0 * dy0), th0 = Math.atan2(dy0, dx0), cs = Math.cos(th0), sn = Math.sin(th0), A0 = r0 - b.R;
+  let hmax = 0; const span = Math.hypot(W, H) / 2 * s / r0 * 1.1;           // 本屏可见弧上的最高地形(其上方的像素直接当天空)
+  for (let i = -16; i <= 16; i++) { const h = terr(b, wrapA(th0 + span * i / 16)); if (h > hmax) hmax = h; } hmax += 1;
+  for (let x = x0; x <= x1; x++) { const ex = (x + .5 - W / 2) * s; CA[x] = ex * cs; CT[x] = -ex * sn; }
+  for (let y = y0; y <= y1; y++) { const ey = (H / 2 - y - .5) * s; RA[y] = A0 + ey * sn; RT[y] = ey * cs; }
+  for (let y = y0; y <= y1; y++) {
+    const ra = RA[y], rt = RT[y], row = y * W;
+    for (let x = x0; x <= x1; x++) {
+      const alt = ra + CA[x]; let c = 0;
+      if (alt > hmax) { if (a && alt < top) c = skyC(b, lut, alt, x, y); }
+      else if (alt < deep) c = dirt(p, -alt / s, x, y);
+      else {
+        const h = terr(b, wrapA(th0 + (rt + CT[x]) / r0)), d = h - alt;
+        if (d < 0) { if (a && alt < top) c = skyC(b, lut, alt, x, y); }
+        else {
+          const dp = d / s, snow = h > b.H * .6 && dp < 8, ch = (x + y) & 1;
+          if (dp > 40) c = dirt(p, dp, x, y); else if (isW) c = dp < 2 ? p[2] : ch ? p[2] : p[3]; else c = snow ? p[4] : dp < 2 ? p[0] : (ch && dp > 5 ? p[1] : p[0]);
+        }
+      }
+      if (c) buf[row + x] = c;
+    }
+  }
+}
 function drawBody(b) {
   const s = 1 / mpp, cx = W / 2 + (b.x - camx) * s, cy = H / 2 - (b.y - camy) * s, rr = (b.R + b.H + (b.atm ? b.atm.top : 0) + (b.type === 'sun' ? b.R * .4 : 0)) * s;
   if (rr < 1.5) return;
   if (cx + rr < 0 || cx - rr > W || cy + rr < 0 || cy - rr > H) return;
   const x0 = Math.max(0, cx - rr | 0), x1 = Math.min(W - 1, Math.ceil(cx + rr)), y0 = Math.max(0, cy - rr | 0), y1 = Math.min(H - 1, Math.ceil(cy + rr)), p = b.pal;
+  if (b.type === 'rock' && !noFlat && mpp < 4 * b.R / (W * W)) { drawFlat(b, x0, x1, y0, y1); return; }   // 近地面:曲率不足 1 像素 → 线性近似
   for (let y = y0; y <= y1; y++) {
     const dy = (H / 2 - y - .5) * mpp + camy - b.y;
     for (let x = x0; x <= x1; x++) {
@@ -357,19 +456,27 @@ function drawBody(b) {
     }
   }
 }
-function px(wx, wy, a, lx, ly, col) {
-  const s = 1 / mpp, z = Math.max(1, Math.ceil(s)), ca = Math.cos(a), sa = Math.sin(a);
+function px(wx, wy, a, lx, ly, col, cs = 1) {                    // 画一个旋转后的方块(cs=边长/米)
+  const s = 1 / mpp, z = Math.max(1, Math.ceil(cs * s)), ca = Math.cos(a), sa = Math.sin(a);
   const X = wx + lx * ca - ly * sa, Y = wy + lx * sa + ly * ca;
   ctx.fillStyle = col; ctx.fillRect(Math.round(W / 2 + (X - camx) * s - z / 2), Math.round(H / 2 - (Y - camy) * s - z / 2), z, z);
 }
-function drawRows(rs, wx, wy, a) {
-  if (!rs.length) return;
-  const h = rs.length, w = rs[0].length;
-  for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) { const ch = rs[r][c]; if (ch !== '.') px(wx, wy, a, c - (w - 1) / 2, (h - 1) / 2 - r, PC[ch]); }
+const SC = new WeakMap();
+function sprite(rs) {                                         // 每组 rows 只生成一次离屏画布,之后整块旋转绘制
+  let c = SC.get(rs); if (c) return c;
+  c = document.createElement('canvas'); c.width = rs[0].length; c.height = rs.length;
+  const x = c.getContext('2d');
+  for (let y = 0; y < rs.length; y++) for (let i = 0; i < rs[y].length; i++) { const ch = rs[y][i]; if (ch !== '.') { x.fillStyle = PC[ch]; x.fillRect(i, y, 1, 1); } }
+  SC.set(rs, c); return c;
 }
-function drawChute(hh) {
-  for (let x = -7; x <= 7; x++) { const dy = Math.round(Math.sqrt(49 - x * x) * .7); for (let k = 0; k <= dy; k++) px(S.x, S.y, S.a, x, hh + 12 + k, ((x + 8) >> 1) & 1 ? '#f4f4f4' : '#d83a3a'); }
-  for (let t = 0; t <= 12; t++) for (const sg of [-1, 1]) px(S.x, S.y, S.a, sg * 7 * (1 - t / 12), hh + 12 * (t / 12) + 0.01, '#cfd3e0');
+function drawRows(rs, wx, wy, a) {
+  if (!rs.length) return; const c = sprite(rs), s = 1 / mpp;
+  ctx.save(); ctx.translate(W / 2 + (wx - camx) * s, H / 2 - (wy - camy) * s); ctx.rotate(-a); ctx.scale(CELL * s, CELL * s);
+  ctx.drawImage(c, -c.width / 2, -c.height / 2); ctx.restore();
+}
+function drawChute(hh) {                                      // 降落伞:红白相间的伞衣 + 伞绳
+  for (let x = -14; x <= 14; x++) { const dy = Math.round(Math.sqrt(196 - x * x) * .7); for (let k = 0; k <= dy; k++) px(S.x, S.y, S.a, x * CELL, hh + 12 + k * CELL, ((x + 15) >> 2) & 1 ? '#f4f4f4' : '#d83a3a', CELL); }
+  for (let t = 0; t <= 24; t++) for (const sg of [-1, 1]) px(S.x, S.y, S.a, sg * 7 * (1 - t / 24), hh + 12 * (t / 24) + .01, '#cfd3e0', CELL * .7);
 }
 function drawOrbit(b, o, col) {
   if (mpp < 6 || S.land) return;
@@ -382,7 +489,7 @@ function drawOrbit(b, o, col) {
   }
 }
 function markers() {
-  const s = 1 / mpp; ctx.font = '8px monospace';
+  const s = 1 / mpp; ctx.font = FS + 'px monospace';
   ctx.fillStyle = '#2a3258';                                  // 轨道环(行星绕太阳、月球绕地球)
   for (const b of bodies) if (b.orb) {
     const q = b.orb.p, rpx = b.orb.a * s; if (rpx < 4 || rpx > 4000) continue;
@@ -396,7 +503,7 @@ function markers() {
     const rr = b.R * s, sx = W / 2 + (b.x - camx) * s, sy = H / 2 - (b.y - camy) * s;
     if (b.orb && b.orb.p !== sun && b.orb.a * s < 14) continue;           // 卫星轨道太小时不画,避免挤在一起
     if (sx < -30 || sx > W + 30 || sy < -10 || sy > H + 10) continue;
-    if (rr < 3) { ctx.fillStyle = b.col; ctx.fillRect(sx - 1 | 0, sy - 1 | 0, 3, 3); }
+    if (rr < 3) { ctx.fillStyle = b.col; ctx.fillRect(sx - U | 0, sy - U | 0, 3 * U, 3 * U); }
     if (rr < 3 || mpp > 2e3 || mapMode) { ctx.fillStyle = '#cfe8ff'; ctx.fillText(b.name, sx + 5 | 0, sy - 3 | 0); }
   }
 }
@@ -409,20 +516,20 @@ function render(dt, rb, o) {
   if (node && NODE) drawOrbit(NODE.b, NODE.post, '#b7ff6a');
   for (const d of D) if (mpp < 40) drawRows(d.rows, d.x, d.y, d.a);
   if (!S.dead) {
-    const rs = rows(), hh = rs.length / 2;
+    const rs = rows(), hh = rs.length * CELL / 2;
     if (mpp < 40) {
-      if (S.flame) {                                         // 像素火焰
-        const F = S.stages[0].F, bw = F > 3e5 ? 5 : F > 1e5 ? 3 : 2, len = 4 + S.flame * (5 + F / 8e4);
+      if (S.flame) {                                         // 像素火焰:白热核心 → 黄 → 橙 → 红 → 烟
+        const F = S.stages[0].F, bw = F > 3e5 ? 16 : F > 1e5 ? 12 : 8, len = 2 * (4 + S.flame * (5 + F / 8e4)) | 0;
         for (let i = 0; i < len; i++) {
-          const t = i / len, wd = t < .35 ? bw : t < .7 ? Math.max(1, bw - 1) : 1, col = t < .35 ? '#fff3a0' : t < .7 ? '#ffb02e' : '#e8531f';
-          for (let k = 0; k < wd; k++) if (Math.random() > .15) px(S.x, S.y, S.a, k - (wd - 1) / 2, -hh - 1 - i, col);
+          const t = i / len, wd = Math.max(1, Math.round(bw * (1 - .8 * t ** 1.2))), col = t < .15 ? '#ffffff' : t < .35 ? '#fff3a0' : t < .6 ? '#ffb02e' : t < .85 ? '#e8531f' : '#7a2a18';
+          for (let k = 0; k < wd; k++) if (Math.random() > .08 + t * .25) px(S.x, S.y, S.a, (k - (wd - 1) / 2) * CELL, -hh - (i + .5) * CELL, col, CELL);
         }
       }
       drawRows(rs, S.x, S.y, S.a);
       if (S.chute && chutesN()) drawChute(hh);
     } else {                                                  // 远景/地图:火箭画成闪烁十字
       const sx = W / 2 + (S.x - camx) / mpp, sy = H / 2 - (S.y - camy) / mpp, bl = (performance.now() / 350 | 0) & 1;
-      ctx.fillStyle = bl ? '#fff' : '#f33'; ctx.fillRect(sx - 3 | 0, sy | 0, 7, 1); ctx.fillRect(sx | 0, sy - 3 | 0, 1, 7);
+      ctx.fillStyle = bl ? '#fff' : '#f33'; ctx.fillRect(sx - 3 * U | 0, sy | 0, 7 * U, U); ctx.fillRect(sx | 0, sy - 3 * U | 0, U, 7 * U);
     }
   }
   for (let i = P.length - 1; i >= 0; i--) {
@@ -456,6 +563,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyP') chute();
   if (e.code === 'KeyM') toggleMap();
   if (e.code === 'KeyN') cycleTarget();
+  if (e.code === 'KeyQ') { try { localStorage.setItem('sfs_q', (QI + 1) % QS.length); } catch (x) {} location.reload(); }
   if (e.code === 'KeyO') toggleNode();
   if (e.code === 'KeyV') { alignOn = !alignOn; msg(alignOn ? (node ? '自动对准节点方向' : '先按 O 创建节点') : '已取消自动对准'); }
   if (e.code === 'KeyK') { if (node && NODE) { autoW = Math.max(T + 1, node.t - (isFinite(NODE.burn) ? NODE.burn / 2 : 0) - 15); msg('⏩ 自动加速到节点…'); } else msg('先按 O 创建节点'); }
@@ -468,7 +576,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Period') wi = Math.min(WARPS.length - 1, wi + 1); if (e.code === 'Comma') wi = Math.max(0, wi - 1);
 });
 addEventListener('keyup', e => K[e.code] = 0);
-const zoom = k => { if (mapMode) mm = clamp(mm * k, 100, 1e9); else mpp = clamp(mpp * k, .2, 2e8); };
+const zoom = k => { if (mapMode) mm = clamp(mm * k, 100, 1e9); else mpp = clamp(mpp * k, .1, 2e8); };
 addEventListener('wheel', e => { zoom(e.deltaY > 0 ? 1.15 : 1 / 1.15); e.preventDefault(); }, { passive: false });
 addEventListener('keydown', e => {
   if (e.code === 'Equal' || e.code === 'NumpadAdd') zoom(1 / 1.25); if (e.code === 'Minus' || e.code === 'NumpadSubtract') zoom(1.25); });
@@ -506,15 +614,16 @@ document.querySelectorAll('[data-k]').forEach(b => {
   row('径向', [-100, -10, -1, 1, 10, 100].map(d => [(d > 0 ? '+' : '−') + Math.abs(d), dv('r', d)]));
   row('', [['对准', () => { alignOn = !alignOn; }], ['到节点', () => dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyK' }))], ['清零', () => { if (node) { node.p = node.r = 0; } }], ['删除', toggleNode]]);
 })();
+$('qsel').value = QI; $('qsel').onchange = () => { try { localStorage.setItem('sfs_q', $('qsel').value); } catch (x) {} location.reload(); };
 $('tg').addEventListener('click', () => document.body.classList.toggle('touch'));
 const pc = $('pv').getContext('2d');
 function openBuild() { building = true; document.body.classList.add('building'); for (const k in K) K[k] = 0; $('build').classList.remove('hide'); bRefresh(); }
 function bRefresh() {
   const stg = compile(design); let rs = CAP; for (let i = stg.length - 1; i >= 0; i--) rs = rs.concat(stg[i].rows);
-  const cell = Math.max(1, Math.min(14, Math.floor(400 / rs.length))), ox = (200 - 13 * cell) / 2, ph = Math.max(420, rs.length * cell + 20);
+  const cell = Math.max(1, Math.min(7, Math.floor(400 / rs.length))), ox = (260 - WF * cell) / 2, ph = Math.max(420, rs.length * cell + 20);
   if ($('pv').height !== ph) $('pv').height = ph;
-  pc.clearRect(0, 0, 200, ph);
-  rs.forEach((r, y) => { for (let x = 0; x < 13; x++) if (r[x] !== '.') { pc.fillStyle = PC[r[x]]; pc.fillRect(ox + x * cell, 10 + y * cell, cell, cell); } });
+  pc.clearRect(0, 0, 260, ph);
+  rs.forEach((r, y) => { for (let x = 0; x < WF; x++) if (r[x] !== '.') { pc.fillStyle = PC[r[x]]; pc.fillRect(ox + x * cell, 10 + y * cell, cell, cell); } });
   const tot = CAPM + stg.reduce((s, t) => s + t.dry + t.fuel, 0); let dvT = 0, html = '';
   for (let i = 0; i < stg.length; i++) {
     let m0 = CAPM; for (let j = i; j < stg.length; j++) m0 += stg[j].dry + stg[j].fuel;
@@ -522,7 +631,7 @@ function bRefresh() {
     html += `第${i + 1}级${i ? '' : '(底)'}:Δv <b>${dv | 0}</b> m/s · 推力 ${s.F / 1000 | 0} kN · 燃料 ${s.fuel | 0} kg<br>`;
   }
   const twr = stg[0].F / (tot * 9.8), cost = CAPCOST + stg.reduce((s, t) => s + t.cost, 0), ok = stg[0].F > 0 && twr > 1;
-  html += `<hr>总 Δv <b>${dvT | 0}</b> m/s(入轨约需 3500~4000)<br>起飞质量 ${(tot / 1000).toFixed(1)} t · 高度 ${rs.length} m<br>起飞推重比 <b>${twr.toFixed(2)}</b><br>降落伞 ${stg.reduce((s, t) => s + t.chutes, 0)} 个 · 造价 <b>$${cost.toLocaleString()}</b>(不设预算上限)`;
+  html += `<hr>总 Δv <b>${dvT | 0}</b> m/s(入轨约需 3500~4000)<br>起飞质量 ${(tot / 1000).toFixed(1)} t · 高度 ${(rs.length * CELL).toFixed(0)} m<br>起飞推重比 <b>${twr.toFixed(2)}</b><br>降落伞 ${stg.reduce((s, t) => s + t.chutes, 0)} 个 · 造价 <b>$${cost.toLocaleString()}</b>(不设预算上限)`;
   html += ok ? '' : '<br><em>' + (stg[0].F ? '推重比需大于 1 才能起飞' : '最底部一级需要引擎') + '</em>';
   $('stats').innerHTML = html; $('bgo').disabled = !ok;
 }
@@ -576,7 +685,7 @@ function frame(now) {
     const sv = [camx, camy, mpp], c = mf < bodies.length ? bodies[mf] : S;
     camx = c.x; camy = c.y; mpp = mm;
     render(dt, rb, o);
-    ctx.font = '8px monospace'; ctx.fillStyle = '#ffd75e';
+    ctx.font = FS + 'px monospace'; ctx.fillStyle = '#ffd75e';
     ctx.fillText('地图 · 聚焦:' + (mf < bodies.length ? bodies[mf].name : '火箭') + ' · 1 像素 = ' + f(mm) + ' · Tab 换聚焦 · M 返回', 4, 10);
     drawTransfer();
     camx = sv[0]; camy = sv[1]; mpp = sv[2];
@@ -585,5 +694,5 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.SFS = { get S() { return S; }, bodies, get T() { return T; }, kep, orbitFrom, get node() { return node; }, get NODE() { return NODE; } };
+window.SFS = { get S() { return S; }, bodies, get T() { return T; }, kep, orbitFrom, buf, W, H, setFlat: v => noFlat = !v, drawBody, setCam: (x, y, m) => { camx = x; camy = y; mpp = m; }, PARTS, PC, compile, CAP, WF, CELL, get node() { return node; }, get NODE() { return NODE; } };
 })();
