@@ -1,0 +1,60 @@
+name: 自动解压上传的 zip
+
+# 在 feature/threejs-sfs-module-1 分支根目录上传任意 .zip，
+# 本工作流会把它解压到仓库根目录（覆盖同名文件、不删除其他文件），
+# 然后删除 zip 并自动提交。
+on:
+  push:
+    branches: [feature/threejs-sfs-module-1]
+    paths: ["*.zip"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: unzip-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: 解压根目录下的 zip 并覆盖进仓库
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          zips=(./*.zip)
+          if [ ${#zips[@]} -eq 0 ]; then echo "根目录没有 zip，跳过。"; exit 0; fi
+
+          for z in "${zips[@]}"; do
+            echo "==> 解压 $z"
+            tmp="$(mktemp -d)"
+            unzip -q "$z" -d "$tmp" -x '__MACOSX/*' '*/node_modules/*' 'node_modules/*' '*/.git/*' '.git/*'
+            src="$tmp"
+            # 只有一层顶级目录时，自动进入该目录
+            if [ "$(ls -A "$tmp" | wc -l)" -eq 1 ] && [ -d "$tmp/$(ls -A "$tmp")" ]; then
+              src="$tmp/$(ls -A "$tmp")"
+            fi
+            # 不允许 zip 改写工作流本身
+            rm -rf "$src/.github/workflows"
+            cp -a "$src"/. .
+            git rm -q -f -- "$z"
+            rm -rf "$tmp"
+          done
+
+      - name: 提交并推送
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "没有改动。"; exit 0; fi
+          git commit -m "chore: 自动解压上传的 zip"
+          git push origin "HEAD:${{ github.ref_name }}"
