@@ -11,26 +11,29 @@ on:
   workflow_dispatch:
     inputs:
       archive_path:
-        description: "要解压的 ZIP 路径"
+        description: "要解压的 ZIP 路径（必须位于 incoming/）"
         required: false
         type: string
         default: "incoming/spaceflight-simulator-i18n.zip"
 
+# This workflow is intentionally restricted to the feature branch.
+# It never checks out, commits to, or pushes to main.
 permissions:
   contents: write
 
 concurrency:
-  group: safe-unzip-${{ github.ref }}
+  group: safe-unzip-feature-threejs-sfs-module-1
   cancel-in-progress: false
 
 jobs:
   extract:
-    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/feature/threejs-sfs-module-1' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout selected branch
+      - name: Checkout feature branch only
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
+          ref: feature/threejs-sfs-module-1
           persist-credentials: true
 
       - name: Set up Python
@@ -45,7 +48,14 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -n "${ARCHIVE_PATH:-}" ]]; then
-            if [[ "$ARCHIVE_PATH" != *.zip || ! -f "$ARCHIVE_PATH" ]]; then
+            case "$ARCHIVE_PATH" in
+              incoming/*.zip) ;;
+              *)
+                echo "拒绝处理 incoming/ 以外的 ZIP 路径: $ARCHIVE_PATH" >&2
+                exit 1
+                ;;
+            esac
+            if [[ ! -f "$ARCHIVE_PATH" ]]; then
               echo "指定路径不是存在的 ZIP 文件: $ARCHIVE_PATH" >&2
               exit 1
             fi
@@ -59,7 +69,7 @@ jobs:
             python scripts/safe_unzip.py "${FILES[@]}" --output extracted
           fi
 
-      - name: Commit extracted files back to branch
+      - name: Commit extracted files to feature branch only
         shell: bash
         run: |
           set -euo pipefail
@@ -70,7 +80,7 @@ jobs:
             echo "没有新的解压文件需要提交。"
           else
             git commit -m "Extract uploaded ZIP archive"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
+            git push origin "HEAD:refs/heads/feature/threejs-sfs-module-1"
           fi
 
       - name: Upload extraction report
