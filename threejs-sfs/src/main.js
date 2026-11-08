@@ -209,7 +209,7 @@ window.addEventListener("pointerup", event => {
 
 $("#rotate").addEventListener("click", () => {
   if (!selectedInstanceId) return setStatus("请先点击画布中的一个零件。", true);
-  if (!assembly.rotatePart(selectedInstanceId, 1)) return setStatus("该位置旋转后会越界或与其他零件重叠。", true);
+  if (!assembly.rotatePart(selectedInstanceId, 1)) return setStatus("该位置旋转后会越界、重叠或使连接点脱开。", true);
   rebuildScene(); updateInspector(); setStatus("零件已旋转 90°。");
 });
 $("#delete").addEventListener("click", () => {
