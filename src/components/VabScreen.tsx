@@ -6,7 +6,7 @@ import { formatDistance, formatMass } from "@/game/core/math";
 import { PART_LIST, getDef, isStageable } from "@/game/data/parts";
 import { LangSwitch, useLang } from "@/i18n/react";
 import type { Key } from "@/i18n";
-import { apiError, categoryLabel, errorText, msg, partDesc, partName as partLabel, tm, vesselName } from "@/i18n/game";
+import { categoryLabel, errorText, msg, partDesc, partName as partLabel, tm, vesselName } from "@/i18n/game";
 import { blueprintStats } from "@/game/flight/vessel";
 import { VabRenderer } from "@/game/render/vabRenderer";
 import { addPart, findSnap, removePart, normalize, type SnapResult } from "@/game/vab/grid";
