@@ -295,7 +295,7 @@ export default function FlightScreen({ bp, onRevert, onRestart, onMenu }: Props)
       </div>
 
       {/* staging stack */}
-      <div className="flight-side-panel pointer-events-auto absolute bottom-3 left-2 top-20 flex w-[clamp(7rem,18vw,13rem)] flex-col justify-end gap-1.5 sm:bottom-4 sm:left-3 sm:top-24">
+      <div className="flight-side-panel flight-staging-panel pointer-events-auto absolute bottom-3 left-2 top-20 flex w-[clamp(7rem,18vw,13rem)] flex-col justify-end gap-1.5 sm:bottom-4 sm:left-3 sm:top-24">
         {tel.vessels.length > 1 && (
           <div className="mb-2 max-h-40 overflow-y-auto rounded-lg border border-[#222b39] bg-[#0d1218]/85 p-2 backdrop-blur">
             <div className="mb-1 text-[10px] uppercase tracking-widest text-slate-500">{t("fl.vessels")}</div>
@@ -335,7 +335,7 @@ export default function FlightScreen({ bp, onRevert, onRestart, onMenu }: Props)
       </div>
 
       {/* right: navball + telemetry */}
-      <div className="flight-side-panel pointer-events-auto absolute bottom-3 right-2 top-20 flex w-[clamp(8rem,23vw,16rem)] flex-col items-end justify-end gap-2 overflow-y-auto sm:bottom-4 sm:right-3 sm:top-24">
+      <div className="flight-side-panel flight-telemetry-panel pointer-events-auto absolute bottom-3 right-2 top-20 flex w-[clamp(8rem,23vw,16rem)] flex-col items-end justify-end gap-2 overflow-y-auto sm:bottom-4 sm:right-3 sm:top-24">
         {mode === "map" && <MapPanel sim={sim} tel={tel} hohmannAlt={hohmannAlt} setHohmannAlt={setHohmannAlt} onChange={nodeChanged} focusName={focusId ? bodyName(focusId) : t("map.vessel")}
             onFocus={() => {
               rendererRef.current?.cycleMapFocus();
