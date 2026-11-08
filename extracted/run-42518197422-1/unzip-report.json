@@ -1,0 +1,9 @@
+[
+  {
+    "archive": "incoming/spaceflight-simulator-i18n.zip",
+    "output": "extracted/run-42518197422-1/spaceflight-simulator-i18n",
+    "files": 42,
+    "uncompressed_bytes": 267656,
+    "status": "success"
+  }
+]
