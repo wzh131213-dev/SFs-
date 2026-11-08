@@ -1,0 +1,37 @@
+name: Three.js SFS Module 1
+
+on:
+  push:
+    branches:
+      - feature/threejs-sfs-module-1
+    paths:
+      - "threejs-sfs/**"
+      - ".github/workflows/threejs-sfs-module-1.yml"
+  pull_request:
+    paths:
+      - "threejs-sfs/**"
+      - ".github/workflows/threejs-sfs-module-1.yml"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: threejs-sfs/package.json
+      - name: Install dependencies
+        working-directory: threejs-sfs
+        run: npm install
+      - name: Run unit tests
+        working-directory: threejs-sfs
+        run: npm test
+      - name: Build production bundle
+        working-directory: threejs-sfs
+        run: npm run build
+      - name: Verify build entry
+        run: test -s threejs-sfs/site/index.html
