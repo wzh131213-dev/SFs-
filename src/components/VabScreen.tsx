@@ -296,7 +296,7 @@ export default function VabScreen({ bp, onChange, onLaunch, onMenu }: Props) {
   const shown = PART_LIST.filter((p) => category === "all" || p.category === category);
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#0b0e13] text-slate-200 select-none">
+    <div className="flex h-[100dvh] w-full flex-col overflow-hidden bg-[#0b0e13] text-slate-200 select-none">
       {/* top bar */}
       <div className="flex flex-wrap items-center gap-2 border-b border-[#1c2430] bg-[#10151d] px-3 py-2">
         <button className={btn} onClick={onMenu}>
@@ -355,7 +355,7 @@ export default function VabScreen({ bp, onChange, onLaunch, onMenu }: Props) {
 
       <div className="flex min-h-0 flex-1">
         {/* palette */}
-        <div className="flex w-60 shrink-0 flex-col border-r border-[#1c2430] bg-[#0f141b]">
+        <div data-device-panel className="flex w-[clamp(6.5rem,19vw,15rem)] shrink-0 flex-col border-r border-[#1c2430] bg-[#0f141b]">
           <div className="flex flex-wrap gap-1 border-b border-[#1c2430] p-2">
             {categories.map((c) => (
               <button
@@ -375,7 +375,7 @@ export default function VabScreen({ bp, onChange, onLaunch, onMenu }: Props) {
                 className={`flex w-full items-center gap-3 rounded-lg border p-2 text-left transition ${tool === d.id ? "border-[#ff8a1f] bg-[#241a10]" : "border-[#222b39] bg-[#141a23] hover:border-[#3a475c]"}`}
                 title={partDesc(d.id, d.description)}
               >
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded bg-[#0b0e13]">
+                <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded bg-[#0b0e13] sm:flex">
                   <PartIcon def={d} size={46} />
                 </div>
                 <div className="min-w-0">
@@ -427,7 +427,7 @@ export default function VabScreen({ bp, onChange, onLaunch, onMenu }: Props) {
         </div>
 
         {/* right panel */}
-        <div className="flex w-72 shrink-0 flex-col overflow-y-auto border-l border-[#1c2430] bg-[#0f141b]">
+        <div data-device-panel className="flex w-[clamp(7.5rem,22vw,18rem)] shrink-0 flex-col overflow-y-auto border-l border-[#1c2430] bg-[#0f141b]">
           <Section title={t("vab.statsTitle")}>
             {stats ? (
               <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
