@@ -81,3 +81,16 @@ test("blueprints without an explicit connections array load as detached parts", 
   assert.equal(restored.parts.length, 1);
   assert.equal(restored.graph.isConnected(), true);
 });
+
+test("blueprint loading rejects excess propellant and non-physical attachment edges", () => {
+  const excessFuel = { version: 1, parts: [
+    { instanceId: "tank", partId: "fuel-tank-01", position: { x: 0, y: 0 }, rotation: 0, fuelMass: 99 }
+  ], connections: [] };
+  assert.throws(() => RocketAssembly.fromBlueprint({ database, blueprint: excessFuel }), /propellant/i);
+
+  const detachedEdge = { version: 1, parts: [
+    { instanceId: "pod", partId: "command-pod-01", position: { x: 0, y: 5 }, rotation: 0 },
+    { instanceId: "tank", partId: "fuel-tank-01", position: { x: 0, y: 0 }, rotation: 0 }
+  ], connections: [{ a: "pod", b: "tank", aPort: "bottom", bPort: "top" }] };
+  assert.throws(() => RocketAssembly.fromBlueprint({ database, blueprint: detachedEdge }), /align/i);
+});
