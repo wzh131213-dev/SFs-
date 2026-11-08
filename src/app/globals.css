@@ -68,11 +68,11 @@ html[data-device="tablet"] [data-device-panel] {
   width: clamp(9rem, 21vw, 15rem);
 }
 
-html[data-device="phone"] .flight-side-panel:first-of-type {
+html[data-device="phone"] .flight-staging-panel {
   width: clamp(6.5rem, 27vw, 9rem);
 }
 
-html[data-device="phone"] .flight-side-panel:nth-of-type(2) {
+html[data-device="phone"] .flight-telemetry-panel {
   width: clamp(7.25rem, 30vw, 10rem);
 }
 
