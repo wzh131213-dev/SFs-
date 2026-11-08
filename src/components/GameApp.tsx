@@ -142,6 +142,7 @@ function DeviceSetup({ mode, detected, display, lang, onChoose }: {
   onChoose: (mode: DeviceMode) => void;
 }) {
   const zh = lang === "zh";
+  const [selected, setSelected] = useState<DeviceMode>(mode);
   const options: { id: DeviceMode; title: string; desc: string; icon: string }[] = [
     { id: "auto", title: zh ? "自动识别" : "Auto detect", desc: zh ? "根据屏幕尺寸、触控能力和设备信息自动适配" : "Fit from screen size, touch support and device hints", icon: "✦" },
     { id: "phone", title: zh ? "手机" : "Phone", desc: zh ? "窄屏布局，适合竖屏或横屏手机" : "Compact layout for portrait or landscape phones", icon: "▯" },
@@ -156,8 +157,8 @@ function DeviceSetup({ mode, detected, display, lang, onChoose }: {
         <p className="mt-2 text-sm leading-relaxed text-slate-400">{zh ? "游戏会读取屏幕尺寸、可用视口和像素比例，自动调整界面密度与画布大小。你也可以手动指定设备类型。" : "The game reads screen size, viewport and pixel ratio to fit the interface and rendering canvas. You can also choose the device type manually."}</p>
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {options.map((option) => (
-            <button key={option.id} type="button" onClick={() => onChoose(option.id)} aria-pressed={mode === option.id}
-              className={`min-h-28 rounded-xl border p-3 text-left transition ${mode === option.id ? "border-[#ff8a1f] bg-[#2a1b0d] ring-1 ring-[#ff8a1f]/40" : "border-[#273346] bg-[#111b29] hover:border-[#4da3ff]"}`}>
+            <button key={option.id} type="button" onClick={() => setSelected(option.id)} aria-pressed={selected === option.id}
+              className={`min-h-28 rounded-xl border p-3 text-left transition ${selected === option.id ? "border-[#ff8a1f] bg-[#2a1b0d] ring-1 ring-[#ff8a1f]/40" : "border-[#273346] bg-[#111b29] hover:border-[#4da3ff]"}`}>
               <div className="text-2xl text-[#ffad59]">{option.icon}</div>
               <div className="mt-2 text-sm font-bold text-white">{option.title}</div>
               <div className="mt-1 text-[10px] leading-relaxed text-slate-400">{option.desc}</div>
@@ -177,7 +178,7 @@ function DeviceSetup({ mode, detected, display, lang, onChoose }: {
           </div>
         </div>
         <div className="mt-4 flex justify-end">
-          <button type="button" onClick={() => onChoose(mode)} className="rounded-lg bg-[#ff8a1f] px-5 py-2.5 text-sm font-black text-[#1a0f02] hover:bg-[#ffa13d]">
+          <button type="button" onClick={() => onChoose(selected)} className="rounded-lg bg-[#ff8a1f] px-5 py-2.5 text-sm font-black text-[#1a0f02] hover:bg-[#ffa13d]">
             {zh ? "确认并进入游戏" : "Confirm and continue"}
           </button>
         </div>
