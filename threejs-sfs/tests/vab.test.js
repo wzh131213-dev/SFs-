@@ -64,3 +64,20 @@ test("assembly exports and restores a validated blueprint", () => {
   assert.equal(restored.graph.isConnected(), true);
   assert.equal(restored.getMassProperties().totalMass, assembly.getMassProperties().totalMass);
 });
+
+test("rotating a connected part cannot silently break its attachment", () => {
+  const assembly = new RocketAssembly({ database });
+  assembly.addPart("command-pod-01", { x: 0, y: 6 });
+  const tank = assembly.addPart("fuel-tank-01", { x: 0, y: 3 });
+  assert.equal(assembly.rotatePart(tank.instanceId, 1), false);
+  assert.equal(assembly.graph.validate().valid, true);
+});
+
+test("blueprints without an explicit connections array load as detached parts", () => {
+  const blueprint = { version: 1, parts: [
+    { instanceId: "pod", partId: "command-pod-01", position: { x: 0, y: 5 }, rotation: 0 }
+  ] };
+  const restored = RocketAssembly.fromBlueprint({ database, blueprint });
+  assert.equal(restored.parts.length, 1);
+  assert.equal(restored.graph.isConnected(), true);
+});
