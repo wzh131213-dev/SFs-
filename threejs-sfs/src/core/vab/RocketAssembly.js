@@ -24,9 +24,12 @@ export class RocketAssembly {
     const snapped = this.grid.snapPart(part, placement.position, placement.rotation ?? 0);
     if (!snapped.insideBounds) throw new RangeError("Part is outside build bounds.");
     if (this.#overlaps(snapped, null)) throw new Error("Part placement overlaps another part.");
+    const fuelMass = placement.fuelMass ?? part.fuelCapacity;
+    if (!Number.isFinite(fuelMass) || fuelMass < 0 || fuelMass > part.fuelCapacity) {
+      throw new RangeError(`Invalid propellant mass for ${part.id}.`);
+    }
     const item = { instanceId: placement.instanceId, partId: part.id,
-      position: snapped.position, rotation: snapped.rotation,
-      fuelMass: placement.fuelMass ?? part.fuelCapacity };
+      position: snapped.position, rotation: snapped.rotation, fuelMass };
     this.parts.push(item);
     this.graph.addNode(item.instanceId);
   }
@@ -142,6 +145,19 @@ export class RocketAssembly {
     for (const edge of (data.connections ?? [])) {
       if (!assembly.graph.nodes.includes(edge.a) || !assembly.graph.nodes.includes(edge.b)) {
         throw new Error("Blueprint connection references an unknown part.");
+      }
+      const aItem = assembly.parts.find(part => part.instanceId === edge.a);
+      const bItem = assembly.parts.find(part => part.instanceId === edge.b);
+      const aDef = database.get(aItem.partId), bDef = database.get(bItem.partId);
+      if (!PORTS.includes(edge.aPort) || !PORTS.includes(edge.bPort) ||
+          !aDef.attachment[edge.aPort] || !bDef.attachment[edge.bPort] ||
+          OPPOSITE[edge.aPort] !== edge.bPort) {
+        throw new Error("Blueprint connection uses incompatible attachment ports.");
+      }
+      const aPoint = assembly.grid.getAttachmentPoint(aDef, aItem.position, aItem.rotation, edge.aPort);
+      const bPoint = assembly.grid.getAttachmentPoint(bDef, bItem.position, bItem.rotation, edge.bPort);
+      if (!GridSnap.areConnected(aPoint, bPoint, 1e-5)) {
+        throw new Error("Blueprint connection points do not physically align.");
       }
       assembly.graph.connect(edge.a, edge.b, edge);
     }
