@@ -34,11 +34,7 @@ body {
   height: 100dvh;
   min-height: 0;
   overflow: hidden;
-  padding:
-    env(safe-area-inset-top, 0px)
-    env(safe-area-inset-right, 0px)
-    env(safe-area-inset-bottom, 0px)
-    env(safe-area-inset-left, 0px);
+  padding: 0;
 }
 
 canvas {
@@ -57,4 +53,45 @@ button, input, select {
 
 @media (orientation: portrait) and (max-width: 820px) {
   .app-shell .flight-side-panel { max-width: 31vw; }
+}
+
+.navball {
+  width: clamp(82px, 12vw, 168px);
+  height: clamp(82px, 12vw, 168px);
+}
+
+html[data-device="phone"] [data-device-panel] {
+  width: clamp(6.25rem, 25vw, 9rem);
+}
+
+html[data-device="tablet"] [data-device-panel] {
+  width: clamp(9rem, 21vw, 15rem);
+}
+
+html[data-device="phone"] .flight-side-panel:first-of-type {
+  width: clamp(6.5rem, 27vw, 9rem);
+}
+
+html[data-device="phone"] .flight-side-panel:nth-of-type(2) {
+  width: clamp(7.25rem, 30vw, 10rem);
+}
+
+html[data-device="phone"] .navball {
+  width: clamp(72px, 20vw, 112px);
+  height: clamp(72px, 20vw, 112px);
+}
+
+html[data-device="tablet"] .navball {
+  width: clamp(112px, 13vw, 156px);
+  height: clamp(112px, 13vw, 156px);
+}
+
+@media (max-width: 420px) {
+  .app-shell .flight-side-panel {
+    top: 5.5rem;
+    bottom: 5.75rem;
+  }
+  .app-shell input[type="range"] {
+    min-width: 0;
+  }
 }
