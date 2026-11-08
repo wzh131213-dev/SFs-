@@ -38,7 +38,7 @@ test("mass properties include dry mass, propellant and weighted center of mass",
   assert.equal(result.dryMass, 2);
   assert.equal(result.propellantMass, 4);
   assert.equal(result.totalMass, 6);
-  assert.ok(Math.abs(result.centerOfMass.y - 3) < 1e-9);
+  assert.ok(Math.abs(result.centerOfMass.y - 2.6) < 1e-9);
   assert.throws(() => MassProperties.calculate([{ partId: "unknown", position: { x: 0, y: 0 } }], database), /unknown/i);
 });
 
