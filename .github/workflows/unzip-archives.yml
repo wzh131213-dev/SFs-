@@ -1,0 +1,69 @@
+name: Safe ZIP Extractor
+
+on:
+  push:
+    branches:
+      - feature/threejs-sfs-module-1
+    paths:
+      - "incoming/**/*.zip"
+      - "incoming/*.zip"
+      - ".github/workflows/unzip-archives.yml"
+  workflow_dispatch:
+    inputs:
+      archive_path:
+        description: "要解压的 ZIP 路径（默认使用航天模拟器语言包）"
+        required: false
+        type: string
+        default: "incoming/spaceflight-simulator-i18n.zip"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: safe-unzip-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Extract and validate ZIP archives
+        env:
+          ARCHIVE_PATH: ${{ inputs.archive_path }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$ARCHIVE_PATH" ]]; then
+            if [[ "$ARCHIVE_PATH" != *.zip || ! -f "$ARCHIVE_PATH" ]]; then
+              echo "指定路径不是存在的 ZIP 文件: $ARCHIVE_PATH" >&2
+              echo "请确认该 ZIP 已提交到当前分支的仓库中。" >&2
+              echo "当前仓库分支: $GITHUB_REF_NAME" >&2
+              exit 1
+            fi
+            python scripts/safe_unzip.py "$ARCHIVE_PATH" --output extracted
+          else
+            mapfile -d '' -t FILES < <(find incoming -type f -iname '*.zip' -print0 2>/dev/null || true)
+            if (( ${#FILES[@]} == 0 )); then
+              echo "incoming/ 中没有找到 ZIP 文件" >&2
+              exit 1
+            fi
+            python scripts/safe_unzip.py "${FILES[@]}" --output extracted
+          fi
+
+      - name: Upload extracted files and report
+        uses: actions/upload-artifact@v4
+        with:
+          name: extracted-archives-${{ github.run_number }}
+          path: extracted/
+          if-no-files-found: error
+          retention-days: 14
