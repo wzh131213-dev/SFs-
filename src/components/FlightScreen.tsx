@@ -247,7 +247,7 @@ export default function FlightScreen({ bp, onRevert, onRestart, onMenu }: Props)
   const apText = useMemo(() => (orbitInfo ? (orbitInfo.hyperbolic ? t("fl.escape") : formatDistance(orbitInfo.ap)) : "—"), [orbitInfo, t]);
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-black text-slate-200 select-none">
+    <div className="relative h-[100dvh] w-full overflow-hidden bg-black text-slate-200 select-none">
       <div ref={wrapRef} className="absolute inset-0 touch-none" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
         <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
         <canvas ref={overlayRef} className="pointer-events-none absolute inset-0 h-full w-full" />
@@ -295,7 +295,7 @@ export default function FlightScreen({ bp, onRevert, onRestart, onMenu }: Props)
       </div>
 
       {/* staging stack */}
-      <div className="pointer-events-auto absolute bottom-4 left-3 top-24 flex w-52 flex-col justify-end gap-1.5">
+      <div className="flight-side-panel pointer-events-auto absolute bottom-3 left-2 top-20 flex w-[clamp(7rem,18vw,13rem)] flex-col justify-end gap-1.5 sm:bottom-4 sm:left-3 sm:top-24">
         {tel.vessels.length > 1 && (
           <div className="mb-2 max-h-40 overflow-y-auto rounded-lg border border-[#222b39] bg-[#0d1218]/85 p-2 backdrop-blur">
             <div className="mb-1 text-[10px] uppercase tracking-widest text-slate-500">{t("fl.vessels")}</div>
@@ -335,7 +335,7 @@ export default function FlightScreen({ bp, onRevert, onRestart, onMenu }: Props)
       </div>
 
       {/* right: navball + telemetry */}
-      <div className="pointer-events-auto absolute bottom-4 right-3 top-24 flex w-64 flex-col items-end justify-end gap-2 overflow-y-auto">
+      <div className="flight-side-panel pointer-events-auto absolute bottom-3 right-2 top-20 flex w-[clamp(8rem,23vw,16rem)] flex-col items-end justify-end gap-2 overflow-y-auto sm:bottom-4 sm:right-3 sm:top-24">
         {mode === "map" && <MapPanel sim={sim} tel={tel} hohmannAlt={hohmannAlt} setHohmannAlt={setHohmannAlt} onChange={nodeChanged} focusName={focusId ? bodyName(focusId) : t("map.vessel")}
             onFocus={() => {
               rendererRef.current?.cycleMapFocus();
@@ -362,7 +362,7 @@ export default function FlightScreen({ bp, onRevert, onRestart, onMenu }: Props)
           </div>
         </div>
         <div className="flex flex-col items-center rounded-lg border border-[#222b39] bg-[#0d1218]/85 p-2 backdrop-blur">
-          <canvas ref={navRef} width={168} height={168} style={{ width: 168, height: 168 }} />
+          <canvas ref={navRef} width={168} height={168} className="navball" />
           <div className="mt-1 flex w-full items-center justify-between gap-1">
             <HudButton
               onClick={() => {
@@ -390,7 +390,7 @@ export default function FlightScreen({ bp, onRevert, onRestart, onMenu }: Props)
       </div>
 
       {/* bottom: throttle */}
-      <div className="pointer-events-auto absolute bottom-4 left-1/2 flex -translate-x-1/2 items-end gap-3 rounded-lg border border-[#222b39] bg-[#0d1218]/85 px-4 py-2 backdrop-blur">
+      <div className="pointer-events-auto absolute bottom-2 left-1/2 flex max-w-[calc(100vw-0.75rem)] -translate-x-1/2 items-end gap-1.5 rounded-lg border border-[#222b39] bg-[#0d1218]/90 px-2 py-2 backdrop-blur sm:bottom-4 sm:gap-3 sm:px-4">
         <div className="flex flex-col items-center gap-1">
           <HudButton onClick={() => setThrottle(1)} title={t("fl.throttleMaxTip")}>
             {t("fl.throttleMax")}
@@ -399,7 +399,7 @@ export default function FlightScreen({ bp, onRevert, onRestart, onMenu }: Props)
             {t("fl.throttleCut")}
           </HudButton>
         </div>
-        <div className="w-44">
+        <div className="w-[clamp(6.5rem,12vw,11rem)]">
           <div className="mb-1 flex justify-between text-[10px] uppercase tracking-widest text-slate-500">
             <span>{t("fl.throttle")}</span>
             <span className="font-mono text-[#ffb066]">{Math.round(tel.throttle * 100)}%</span>
