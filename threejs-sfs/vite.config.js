@@ -5,6 +5,5 @@ export default defineConfig({
   build: {
     outDir: "site",
     emptyOutDir: true
-  },
-  test: undefined
+  }
 });
