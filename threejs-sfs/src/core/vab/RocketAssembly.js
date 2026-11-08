@@ -109,6 +109,16 @@ export class RocketAssembly {
     const rotation = this.grid.normalizeRotation(item.rotation + quarterTurns * Math.PI / 2);
     const placement = this.grid.snapPart(definition, item.position, rotation);
     if (!placement.insideBounds || this.#overlaps(placement, instanceId)) return false;
+    const candidate = { ...item, position: placement.position, rotation };
+    for (const edge of this.graph.edges.filter(edge => edge.a === instanceId || edge.b === instanceId)) {
+      const aItem = edge.a === instanceId ? candidate : this.parts.find(part => part.instanceId === edge.a);
+      const bItem = edge.b === instanceId ? candidate : this.parts.find(part => part.instanceId === edge.b);
+      const aDef = this.database.get(aItem.partId), bDef = this.database.get(bItem.partId);
+      if (!aDef.attachment[edge.aPort] || !bDef.attachment[edge.bPort]) return false;
+      const aPoint = this.grid.getAttachmentPoint(aDef, aItem.position, aItem.rotation, edge.aPort);
+      const bPoint = this.grid.getAttachmentPoint(bDef, bItem.position, bItem.rotation, edge.bPort);
+      if (OPPOSITE[edge.aPort] !== edge.bPort || !GridSnap.areConnected(aPoint, bPoint, 1e-5)) return false;
+    }
     item.rotation = rotation;
     return true;
   }
@@ -129,7 +139,7 @@ export class RocketAssembly {
   static fromBlueprint({ database, blueprint, grid } = {}) {
     const data = Blueprint.parse(blueprint);
     const assembly = new RocketAssembly({ database, grid, parts: data.parts });
-    for (const edge of data.connections) {
+    for (const edge of (data.connections ?? [])) {
       if (!assembly.graph.nodes.includes(edge.a) || !assembly.graph.nodes.includes(edge.b)) {
         throw new Error("Blueprint connection references an unknown part.");
       }
