@@ -47,6 +47,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # 每次运行使用独立输出目录；重复运行不会覆盖或撞上旧解压目录。
+          OUTPUT_DIR="extracted/run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -p "$OUTPUT_DIR"
+
           if [[ -n "${ARCHIVE_PATH:-}" ]]; then
             case "$ARCHIVE_PATH" in
               incoming/*.zip) ;;
@@ -59,14 +63,14 @@ jobs:
               echo "指定路径不是存在的 ZIP 文件: $ARCHIVE_PATH" >&2
               exit 1
             fi
-            python scripts/safe_unzip.py "$ARCHIVE_PATH" --output extracted
+            python scripts/safe_unzip.py "$ARCHIVE_PATH" --output "$OUTPUT_DIR"
           else
             mapfile -d '' -t FILES < <(find incoming -type f -iname '*.zip' -print0 2>/dev/null || true)
             if (( ${#FILES[@]} == 0 )); then
               echo "incoming/ 中没有找到 ZIP 文件" >&2
               exit 1
             fi
-            python scripts/safe_unzip.py "${FILES[@]}" --output extracted
+            python scripts/safe_unzip.py "${FILES[@]}" --output "$OUTPUT_DIR"
           fi
 
       - name: Commit extracted files to feature branch only
@@ -87,6 +91,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: unzip-report-${{ github.run_number }}
-          path: extracted/unzip-report.json
+          path: extracted/run-*/unzip-report.json
           if-no-files-found: error
           retention-days: 14
