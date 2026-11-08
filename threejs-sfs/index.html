@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#080e18">
+  <title>Spaceflight Simulator · Three.js</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; background: #080e18; color: #e8f0fa; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body { min-height: 100dvh; }
+    #app { min-height: 100dvh; display: grid; grid-template-rows: auto 1fr auto; }
+    header, footer { padding: 12px 16px; background: #0c1727; border-bottom: 1px solid #20334c; }
+    header strong { letter-spacing: .12em; color: #ffad55; }
+    #stage { position: relative; min-height: 320px; overflow: hidden; }
+    #stage canvas { display: block; width: 100%; height: 100%; }
+    #status { color: #91cfff; font-size: 13px; }
+    footer { border-top: 1px solid #20334c; border-bottom: 0; color: #9eb0c7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <main id="app">
+    <header><strong>SFS / THREE.JS</strong> <span>— 核心零件实验室</span></header>
+    <section id="stage" aria-label="Three.js 预览场景"></section>
+    <footer><span id="status">正在初始化零件数据库…</span></footer>
+  </main>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
