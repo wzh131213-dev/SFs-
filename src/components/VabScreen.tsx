@@ -35,7 +35,10 @@ interface CloudRow {
   massKg: number;
   deltaV: number;
   updatedAt: string;
+  data: Blueprint;
 }
+
+const BLUEPRINT_LIBRARY_KEY = "orbital.blueprints.library.v1";
 
 const btn =
   "rounded-md border border-[#2a3342] bg-[#171d27] px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-[#ff8a1f] hover:text-white disabled:cursor-not-allowed disabled:opacity-40";
@@ -572,14 +575,15 @@ function StorageDialog({ bp, onClose, onLoad, flash }: { bp: Blueprint; onClose:
   const [json, setJson] = useState(() => serializeBlueprint(bp));
   const [busy, setBusy] = useState(false);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(() => {
     try {
-      const res = await fetch("/api/blueprints", { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) throw apiError(data, "store.errFailed");
-      setRows(data.blueprints);
+      const raw = window.localStorage.getItem(BLUEPRINT_LIBRARY_KEY);
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(parsed)) throw new Error("Saved blueprint library is invalid");
+      setRows(parsed as CloudRow[]);
       setFailure(null);
     } catch (e) {
+      setRows([]);
       setFailure({ e, fb: "store.errLoadList" });
     }
   }, []);
@@ -588,14 +592,25 @@ function StorageDialog({ bp, onClose, onLoad, flash }: { bp: Blueprint; onClose:
     refresh();
   }, [refresh]);
 
-  const save = async () => {
+  const save = () => {
     setBusy(true);
     try {
-      const res = await fetch("/api/blueprints", { method: "POST", body: serializeBlueprint(bp) });
-      const data = await res.json();
-      if (!res.ok) throw apiError(data, "store.errSave");
+      const raw = window.localStorage.getItem(BLUEPRINT_LIBRARY_KEY);
+      const existing: CloudRow[] = raw ? JSON.parse(raw) : [];
+      const stats = blueprintStats(bp);
+      const row: CloudRow = {
+        id: Date.now(),
+        name: bp.name,
+        partCount: bp.parts.length,
+        massKg: stats?.mass ?? 0,
+        deltaV: stats?.dv.total ?? 0,
+        updatedAt: new Date().toISOString(),
+        data: bp,
+      };
+      const next = [row, ...existing.filter((item) => item.name !== bp.name)];
+      window.localStorage.setItem(BLUEPRINT_LIBRARY_KEY, JSON.stringify(next));
       flash(t("store.savedToast", { name: vesselName(bp.name) }));
-      await refresh();
+      refresh();
     } catch (e) {
       setFailure({ e, fb: "store.errSave" });
     } finally {
@@ -603,20 +618,24 @@ function StorageDialog({ bp, onClose, onLoad, flash }: { bp: Blueprint; onClose:
     }
   };
 
-  const load = async (id: number) => {
+  const load = (id: number) => {
     try {
-      const res = await fetch(`/api/blueprints/${id}`, { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) throw apiError(data, "store.errLoad");
-      onLoad(parseBlueprint(JSON.stringify(data.blueprint)));
+      const row = rows?.find((item) => item.id === id);
+      if (!row) throw new Error("Saved blueprint not found");
+      onLoad(parseBlueprint(JSON.stringify(row.data)));
     } catch (e) {
       setFailure({ e, fb: "store.errLoad" });
     }
   };
 
-  const del = async (id: number) => {
-    await fetch(`/api/blueprints/${id}`, { method: "DELETE" });
-    refresh();
+  const del = (id: number) => {
+    try {
+      const next = (rows ?? []).filter((item) => item.id !== id);
+      window.localStorage.setItem(BLUEPRINT_LIBRARY_KEY, JSON.stringify(next));
+      refresh();
+    } catch (e) {
+      setFailure({ e, fb: "store.errLoadList" });
+    }
   };
 
   const importJson = () => {
