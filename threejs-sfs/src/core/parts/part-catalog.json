@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "units": { "mass": "kg", "length": "m", "thrust": "N", "isp": "s" },
+  "parts": [
+    {
+      "id": "command-pod-01", "name": "指令舱", "type": "capsule",
+      "mass": 1.2, "size": { "width": 2, "height": 2 },
+      "attachment": { "top": true, "bottom": true }, "cost": 500,
+      "maxTemperature": 1800, "dragCoefficient": 0.35, "color": "#d7dce5"
+    },
+    {
+      "id": "fuel-tank-01", "name": "小型燃料箱", "type": "fuel_tank",
+      "mass": 0.8, "size": { "width": 2, "height": 4 },
+      "attachment": { "top": true, "bottom": true }, "cost": 300,
+      "fuel": { "capacity": 8, "type": "liquid" },
+      "maxTemperature": 1200, "dragCoefficient": 0.4, "color": "#a9b6c8"
+    },
+    {
+      "id": "engine-01", "name": "基础火箭发动机", "type": "engine",
+      "mass": 1.5, "size": { "width": 2, "height": 2 },
+      "attachment": { "top": true, "bottom": false }, "cost": 800,
+      "engine": { "thrust": 120000, "isp": 260, "gimbal": 5 },
+      "maxTemperature": 2200, "dragCoefficient": 0.6, "color": "#747e8e"
+    },
+    {
+      "id": "separator-01", "name": "级间分离器", "type": "decoupler",
+      "mass": 0.2, "size": { "width": 2, "height": 0.5 },
+      "attachment": { "top": true, "bottom": true }, "cost": 150,
+      "color": "#d18b43"
+    },
+    {
+      "id": "fairing-01", "name": "整流罩", "type": "fairing",
+      "mass": 0.35, "size": { "width": 2.5, "height": 3 },
+      "attachment": { "top": false, "bottom": true }, "cost": 220,
+      "maxTemperature": 1600, "dragCoefficient": 0.15, "color": "#c8d4e4"
+    },
+    {
+      "id": "parachute-01", "name": "降落伞", "type": "parachute",
+      "mass": 0.3, "size": { "width": 2, "height": 1 },
+      "attachment": { "top": true, "bottom": true }, "cost": 200,
+      "maxTemperature": 800, "dragCoefficient": 1.5, "color": "#e6e6e6"
+    },
+    {
+      "id": "rcs-01", "name": "RCS姿态控制器", "type": "rcs",
+      "mass": 0.15, "size": { "width": 1, "height": 1 },
+      "attachment": { "top": true, "bottom": true, "left": true, "right": true },
+      "cost": 120, "color": "#68a9d8"
+    },
+    {
+      "id": "reaction-wheel-01", "name": "反作用飞轮", "type": "reaction_wheel",
+      "mass": 0.25, "size": { "width": 2, "height": 1 },
+      "attachment": { "top": true, "bottom": true }, "cost": 250,
+      "color": "#68b8a2"
+    },
+    {
+      "id": "landing-leg-01", "name": "着陆支架", "type": "landing_leg",
+      "mass": 0.4, "size": { "width": 1, "height": 2 },
+      "attachment": { "top": true, "bottom": false }, "cost": 180,
+      "color": "#a9b1bd"
+    }
+  ]
+}
