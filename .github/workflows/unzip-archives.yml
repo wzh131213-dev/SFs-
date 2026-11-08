@@ -10,10 +10,10 @@ on:
   workflow_dispatch:
     inputs:
       archive_path:
-        description: "仓库内 ZIP 文件路径；留空则处理 incoming/ 下所有 ZIP"
+        description: "要解压的 ZIP 路径（默认使用航天模拟器语言包）"
         required: false
         type: string
-        default: ""
+        default: "incoming/spaceflight-simulator-i18n.zip"
 
 permissions:
   contents: read
@@ -45,6 +45,8 @@ jobs:
           if [[ -n "$ARCHIVE_PATH" ]]; then
             if [[ "$ARCHIVE_PATH" != *.zip || ! -f "$ARCHIVE_PATH" ]]; then
               echo "指定路径不是存在的 ZIP 文件: $ARCHIVE_PATH" >&2
+              echo "请确认该 ZIP 已提交到当前分支的仓库中。" >&2
+              echo "当前仓库分支: $GITHUB_REF_NAME" >&2
               exit 1
             fi
             python scripts/safe_unzip.py "$ARCHIVE_PATH" --output extracted
