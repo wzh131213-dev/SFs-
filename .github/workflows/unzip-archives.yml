@@ -7,8 +7,6 @@ on:
     paths:
       - "incoming/**/*.zip"
       - "incoming/*.zip"
-      - "scripts/safe_unzip.py"
-      - ".github/workflows/unzip-archives.yml"
   workflow_dispatch:
     inputs:
       archive_path:
@@ -38,43 +36,26 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Find and validate ZIP archives
-        id: archives
+      - name: Extract and validate ZIP archives
+        env:
+          ARCHIVE_PATH: ${{ inputs.archive_path }}
         shell: bash
         run: |
           set -euo pipefail
-          INPUT_PATH="${{ inputs.archive_path }}"
-          if [[ -n "$INPUT_PATH" ]]; then
-            if [[ "$INPUT_PATH" != *.zip ]]; then
-              echo "指定文件必须以 .zip 结尾" >&2
+          if [[ -n "$ARCHIVE_PATH" ]]; then
+            if [[ "$ARCHIVE_PATH" != *.zip || ! -f "$ARCHIVE_PATH" ]]; then
+              echo "指定路径不是存在的 ZIP 文件: $ARCHIVE_PATH" >&2
               exit 1
             fi
-            if [[ ! -f "$INPUT_PATH" ]]; then
-              echo "找不到文件: $INPUT_PATH" >&2
-              exit 1
-            fi
-            printf 'archives=%s\n' "$INPUT_PATH" >> "$GITHUB_OUTPUT"
+            python scripts/safe_unzip.py "$ARCHIVE_PATH" --output extracted
           else
-            mapfile -t FILES < <(find incoming -type f -iname '*.zip' -print 2>/dev/null | sort || true)
+            mapfile -d '' -t FILES < <(find incoming -type f -iname '*.zip' -print0 2>/dev/null || true)
             if (( ${#FILES[@]} == 0 )); then
               echo "incoming/ 中没有找到 ZIP 文件" >&2
               exit 1
             fi
-            {
-              echo "archives<<EOF"
-              printf '%s\n' "${FILES[@]}"
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
+            python scripts/safe_unzip.py "${FILES[@]}" --output extracted
           fi
-
-      - name: Extract safely
-        shell: bash
-        run: |
-          set -euo pipefail
-          while IFS= read -r archive; do
-            [[ -z "$archive" ]] && continue
-            python scripts/safe_unzip.py "$archive" --output extracted
-          done <<< "${{ steps.archives.outputs.archives }}"
 
       - name: Upload extracted files and report
         uses: actions/upload-artifact@v4
