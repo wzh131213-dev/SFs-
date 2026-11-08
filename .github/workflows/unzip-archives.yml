@@ -7,7 +7,6 @@ on:
     paths:
       - "incoming/**/*.zip"
       - "incoming/*.zip"
-      - ".github/workflows/unzip-archives.yml"
   workflow_dispatch:
     inputs:
       archive_path:
@@ -72,6 +71,25 @@ jobs:
             fi
             python scripts/safe_unzip.py "${FILES[@]}" --output "$OUTPUT_DIR"
           fi
+
+          # ZIP 中通常带有一个项目顶层目录；若只有一个目录，就把其内容放到仓库根目录。
+          mapfile -d '' TOP_ENTRIES < <(find "$OUTPUT_DIR" -mindepth 1 -maxdepth 1 ! -name 'unzip-report.json' -print0)
+          PROJECT_DIR="$OUTPUT_DIR"
+          if (( ${#TOP_ENTRIES[@]} == 1 )) && [[ -d "${TOP_ENTRIES[0]}" ]]; then
+            PROJECT_DIR="${TOP_ENTRIES[0]}"
+          fi
+
+          # 不覆盖仓库中已有文件；同名冲突时明确失败，避免破坏原项目。
+          while IFS= read -r -d '' SOURCE_FILE; do
+            RELATIVE_PATH="${SOURCE_FILE#"$PROJECT_DIR"/}"
+            if [[ -e "$RELATIVE_PATH" ]]; then
+              echo "根目录存在同名文件，拒绝覆盖: $RELATIVE_PATH" >&2
+              exit 1
+            fi
+            mkdir -p "$(dirname "$RELATIVE_PATH")"
+            cp -p "$SOURCE_FILE" "$RELATIVE_PATH"
+            git add -f -- "$RELATIVE_PATH"
+          done < <(find "$PROJECT_DIR" -type f -print0)
 
       - name: Commit extracted files to feature branch only
         shell: bash
